@@ -13,7 +13,16 @@ import {
   signOut,
   sendPasswordResetEmail // Import sendPasswordResetEmail
 } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, onSnapshot, doc, updateDoc, deleteDoc, query, where, getDoc, setDoc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDoc 
+} from 'firebase/firestore'; // Removed getDocs, updateDoc, query, where
 
 // Context for Firebase and User ID
 const AppContext = createContext(null);
