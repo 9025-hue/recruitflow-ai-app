@@ -1437,7 +1437,7 @@ const JobSeekerPage = () => {
 
 // --- Main App Component ---
 const App = () => {
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPage] = useState('login');
   const [firebaseApp, setFirebaseApp] = useState(null);
   const [db, setDb] = useState(null);
   const [auth, setAuth] = useState(null);
@@ -1556,18 +1556,21 @@ useEffect(() => {
   }
 
   const renderPage = () => {
-    if (!userId || userRole === null) { // Wait for userRole to be determined
-      return <LoginPage auth={auth} onLoginSuccess={(role) => {
-        setUserId(auth.currentUser?.uid);
-        setUserRole(role);
-        if (role === 'recruiter') {
-          navigate('home');
-        } else if (role === 'jobSeeker') {
-          navigate('jobSeeker');
-        }
-      }} setMessage={setMessage} />;
+    // If not authenticated, show login page
+    if (!userId || userRole === null) {
+      return <LoginPage 
+        auth={auth} 
+        onLoginSuccess={(role) => {
+          setUserId(auth.currentUser?.uid);
+          setUserRole(role);
+          // Redirect based on role after login
+          navigate(role === 'recruiter' ? 'home' : 'jobSeeker');
+        }} 
+        setMessage={setMessage} 
+      />;
     }
 
+    // Show appropriate page based on currentPage state for authenticated users
     switch (currentPage) {
       case 'home':
         return <HomePage navigate={navigate} />;
@@ -1584,11 +1587,9 @@ useEffect(() => {
       case 'jobSeeker':
         return <JobSeekerPage />;
       default:
-        // Default based on role if no specific page is set
         return userRole === 'recruiter' ? <HomePage navigate={navigate} /> : <JobSeekerPage />;
     }
-  };
-
+};
   return (
     <AppContext.Provider value={{ firebaseApp, db, auth, userId, appId }}>
       <style>{`
