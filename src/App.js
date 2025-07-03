@@ -1133,9 +1133,38 @@ const InterviewAutomationPage = () => {
     setCurrentMessage('');
     setIsLoadingResponse(true);
 
-    // Simulate AI response and sentiment analysis
-    setTimeout(async () => {
-      const aiResponseText = `Thank you for sharing that, ${candidateName}. That's very helpful.`;
+    try {
+      // Prepare chat history for the LLM API call
+      let chatHistoryForApi = chatHistory.map(msg => ({
+        role: msg.sender === 'User' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      }));
+      chatHistoryForApi.push({ role: "user", parts: [{ text: userMessage.text }] }); // Add the current user message
+
+      const payload = {
+        contents: chatHistoryForApi,
+      };
+
+      const apiKey = ""; // Canvas will automatically provide this in runtime
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
+      if (result.candidates && result.candidates.length > 0 &&
+          result.candidates[0].content && result.candidates[0].content.parts &&
+          result.candidates[0].content.parts.length > 0) {
+        aiResponseText = result.candidates[0].content.parts[0].text;
+      } else {
+        console.error("Unexpected API response structure:", result);
+      }
+
       const aiMessage = {
         sender: 'AI',
         text: aiResponseText,
@@ -1143,13 +1172,23 @@ const InterviewAutomationPage = () => {
       };
       await addDoc(chatHistoryCollectionRef, aiMessage);
 
-      // Simulate sentiment analysis
+      // Simulate sentiment analysis (can be replaced with actual NLP API call)
       const sentimentScore = Math.random() * 2 - 1; // Between -1 and 1
       const sentiment = sentimentScore > 0.5 ? 'Positive' : sentimentScore < -0.5 ? 'Negative' : 'Neutral';
       setSentimentAnalysis({ score: sentimentScore.toFixed(2), sentiment: sentiment });
 
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      setMessage("Failed to get AI response. Please try again.");
+      const errorMessage = {
+        sender: 'AI',
+        text: "There was an error processing your request. Please try again.",
+        timestamp: new Date(),
+      };
+      await addDoc(chatHistoryCollectionRef, errorMessage);
+    } finally {
       setIsLoadingResponse(false);
-    }, 1500); // Simulate network delay
+    }
   };
 
   const endInterview = async () => {
@@ -1411,7 +1450,7 @@ const App = () => {
 
   // Firebase Init: Using the provided configuration directly
   const firebaseConfig = {
-    apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
+    apiKey: "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q", // Updated API Key
     authDomain: "hackathon-99817.firebaseapp.com",
     projectId: "hackathon-99817",
     storageBucket: "hackathon-99817.firebasestorage.app",
