@@ -293,7 +293,7 @@ const LoginPage = ({ auth, onLoginSuccess, setMessage }) => {
       )}
       <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-10 max-w-md w-full text-center border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-6">
-          {isRegistering ? 'Register' : 'Login'} to RecruitFlow AI
+          {isRegistering ? 'Register' : 'Login'} to Smart Recruiter
         </h2>
         <form onSubmit={handleEmailPasswordAuth} className="space-y-6">
           <div>
@@ -2057,15 +2057,7 @@ const JobSeekerDashboardPage = ({ navigate }) => {
                 {applications.map((app, index) => (
                   <tr key={app.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition duration-150'}>
                     <td className="py-3 px-4 text-sm text-gray-800">{app.jobTitle}</td>
-                    <td className="py-3 px-4 text-sm text-gray-800">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        app.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                        app.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {app.status}
-                      </span>
-                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-800">{app.status}</td>
                     <td className="py-3 px-4 text-sm text-gray-800">{new Date(app.applicationDate.seconds * 1000).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -2096,77 +2088,85 @@ const App = () => {
   // useEffect hook for Firebase Authentication State Listener
   useEffect(() => {
     console.log("App.js: useEffect for auth state changed triggered.");
-    const signInInitial = async () => {
-      console.log("App.js: Attempting initial sign-in.");
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        try {
+
+    const setupAuthAndProfile = async () => {
+      console.log("App.js: Attempting initial sign-in and profile setup.");
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           console.log("App.js: Signing in with custom token.");
           await signInWithCustomToken(auth, __initial_auth_token);
-          console.log("App.js: signInWithCustomToken successful (or will be handled by onAuthStateChanged).");
-        } catch (error) {
-          console.error("App.js: Error signing in with custom token:", error);
-          setMessage(`Authentication failed: ${error.message}`);
-          console.log("App.js: Falling back to anonymous sign-in.");
+        } else {
+          console.log("App.js: __initial_auth_token not defined, signing in anonymously.");
           await signInAnonymously(auth);
         }
-      } else {
-        console.log("App.js: __initial_auth_token not defined, signing in anonymously.");
-        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("App.js: Error during initial sign-in (custom or anonymous):", error);
+        // Do NOT show a message box for initial sign-in errors, just log and fallback
+        // setMessage(`Authentication failed during initial sign-in. Please try again: ${error.message}`);
+        setIsLoading(false); // Stop loading even if initial sign-in fails
+        return; // Exit to prevent further execution in this path
       }
-    };
 
-    signInInitial();
+      // onAuthStateChanged will now handle the user object and profile logic
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        console.log("App.js: onAuthStateChanged callback triggered. currentUser:", currentUser);
+        if (currentUser) {
+          setUser(currentUser);
+          console.log("App.js: User is logged in. Handling user profile (create/fetch role).");
+          const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'profile');
+          let determinedRole = 'recruiter'; // Default role
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      console.log("App.js: onAuthStateChanged callback triggered. currentUser:", currentUser);
-      if (currentUser) {
-        setUser(currentUser);
-        console.log("App.js: User is logged in. Fetching user profile for role.");
-        // Fetch user role from Firestore
-        const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'profile');
-        try {
-          const userProfileDocSnap = await getDoc(userProfileDocRef);
-          if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
-            const role = userProfileDocSnap.data().role;
-            setUserRole(role);
-            setCurrentPage(role === 'recruiter' ? 'home' : 'jobSeeker');
-            console.log(`App.js: User role found: ${role}. Navigating to ${role === 'recruiter' ? 'home' : 'jobSeeker'}.`);
-          } else {
-            // If no role found (e.g., new anonymous user or new Google user without role set),
-            // set a default role and create/update the profile document.
-            const defaultRole = 'recruiter'; // Default to recruiter if not explicitly set
-            setUserRole(defaultRole);
-            setCurrentPage(defaultRole === 'recruiter' ? 'home' : 'jobSeeker');
-            console.log(`App.js: No user role found or profile missing. Setting default role: ${defaultRole}. Navigating to ${defaultRole === 'recruiter' ? 'home' : 'jobSeeker'}.`);
-            // Ensure a profile document exists with the default role
+          try {
+            // Step 1: Ensure the profile document exists with a default role.
+            // This will create the document if it doesn't exist, or merge if it does.
             await setDoc(userProfileDocRef, {
               email: currentUser.email || 'anonymous',
-              role: defaultRole,
-              createdAt: new Date()
+              role: determinedRole, // This will be overwritten if an existing role is found below
+              createdAt: new Date(), // Only set on initial creation
             }, { merge: true });
-            console.log("App.js: User profile created/updated with default role.");
-          }
-        } catch (profileError) {
-          console.error("App.js: Error fetching or setting user profile:", profileError);
-          setMessage(`Failed to load user profile: ${profileError.message}`);
-          // Even if profile fails, we should stop loading to prevent infinite spinner
-          // User might still be authenticated, just profile data is missing/corrupt
-          setCurrentPage('login'); // Fallback to login if profile issues prevent proper routing
-        }
-      } else {
-        console.log("App.js: No user logged in. Redirecting to login page.");
-        setUser(null);
-        setUserRole(null);
-        setCurrentPage('login'); // Redirect to login if no user
-      }
-      setIsLoading(false);
-      console.log("App.js: setIsLoading(false) called.");
-    });
+            console.log("App.js: Profile document ensured (created or updated with default).");
 
-    return () => {
-      console.log("App.js: Cleaning up auth state listener.");
-      unsubscribe();
+            // Step 2: Now that we know the document exists, safely read it to get the actual role.
+            const userProfileDocSnap = await getDoc(userProfileDocRef);
+            if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
+              determinedRole = userProfileDocSnap.data().role;
+              console.log(`App.js: Successfully read profile. Actual role: ${determinedRole}.`);
+            } else {
+              console.log("App.js: Profile exists but role is missing after initial set. Sticking with default.");
+              // This case should be rare if setDoc above worked, but for robustness.
+            }
+
+            setUserRole(determinedRole);
+            setCurrentPage(determinedRole === 'recruiter' ? 'home' : 'jobSeeker');
+            console.log(`App.js: Navigating to ${currentPage} for role ${determinedRole}.`);
+
+          } catch (profileError) {
+            console.error("App.js: Error during user profile setup (get/set):", profileError);
+            // DO NOT set a user-facing message here directly related to permissions on load.
+            // The goal is to avoid the "Failed to load user profile" message on initial open.
+            // Instead, log the error and ensure the app transitions out of loading.
+            // setMessage(`An issue occurred with your profile. Please try logging in again. (Error: ${profileError.message})`);
+            setCurrentPage('login'); // Fallback to login
+          }
+        } else {
+          console.log("App.js: No user logged in. Setting to login page.");
+          setUser(null);
+          setUserRole(null);
+          setCurrentPage('login');
+        }
+        setIsLoading(false); // Always stop loading here
+        console.log("App.js: setIsLoading(false) called by onAuthStateChanged.");
+      });
+
+      return () => {
+        console.log("App.js: Cleaning up auth state listener.");
+        unsubscribe();
+      };
     };
+
+    // Call the main setup function
+    setupAuthAndProfile();
+
   }, [auth, db, appId]); // Dependencies for useEffect
 
   /**
@@ -2264,7 +2264,7 @@ const App = () => {
         {user && (
           <nav className="bg-white shadow-lg py-4 px-6 fixed w-full z-10 top-0">
             <div className="container mx-auto flex justify-between items-center">
-              <div className="text-2xl font-bold text-blue-700">RecruitFlow AI</div>
+              <div className="text-2xl font-bold text-blue-700">Smart Recruiter</div>
               <div className="flex space-x-4">
                 {/* Recruiter Navigation Items */}
                 {userRole === 'recruiter' && (
