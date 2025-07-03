@@ -925,7 +925,7 @@ const InterviewSchedulingPage = () => {
               type="submit"
               className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M12 16h.01"></path><path d="M7 16h.01"></path><path d="M17 16h.01"></path><path d="M7 12h.01"></path><path d="M12 12h.01"></path><path d="M17 12h.01"></path></svg>
               Schedule Interview
             </button>
           </div>
@@ -1043,7 +1043,7 @@ const CandidateDashboardPage = () => {
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
-                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">AI Score</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
                   {/* Removed Actions column */}
                 </tr>
               </thead>
@@ -1380,177 +1380,7 @@ const JobSeekerInterviewPrepPage = () => {
   );
 };
 
-// New Job Seeker Profile Page
-const JobSeekerProfilePage = () => {
-  const { db, userId, appId, auth } = useAppContext(); // Get auth from context
-  const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    skills: '',
-    experience: '',
-    desiredJobRole: '',
-    resumeUrl: '',
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const userProfileDocRef = db && userId ? doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile') : null;
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!userProfileDocRef) {
-        setMessage('User profile reference not available.');
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const docSnap = await getDoc(userProfileDocRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setProfile(prev => ({
-            ...prev,
-            ...data,
-            email: data.email || auth?.currentUser?.email || '',
-          }));
-        } else {
-          // Set email from auth if not present
-          setProfile(prev => ({ ...prev, email: auth?.currentUser?.email || '' }));
-        }
-      } catch (error) {
-        setMessage('Failed to load profile.');
-        console.error('Error loading profile:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [userProfileDocRef, userId, auth?.currentUser?.email]);
-
-  const handleProfileSave = async (e) => {
-    e.preventDefault();
-    if (!userProfileDocRef) {
-      setMessage('User profile reference not available.');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await setDoc(userProfileDocRef, profile, { merge: true });
-      setMessage('Profile saved successfully!');
-    } catch (error) {
-      setMessage('Failed to save profile.');
-      console.error('Error saving profile:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    setProfile(prev => ({ ...prev, [id]: value }));
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
-      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
-        <p className="text-center text-gray-600 mb-8">
-          Create or update your profile to get personalized job recommendations and prepare for interviews.
-        </p>
-        <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
-          <div className="md:col-span-2">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              type="text"
-              id="name"
-              value={profile.name}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-              placeholder="Your Full Name"
-              required
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
-            <input
-              type="email"
-              id="email"
-              value={profile.email}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
-              disabled
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (comma-separated)</label>
-            <textarea
-              id="skills"
-              value={profile.skills}
-              onChange={handleChange}
-              rows="3"
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-y transition duration-200"
-              placeholder="e.g., JavaScript, React, Node.js, AWS"
-            ></textarea>
-          </div>
-          <div>
-            <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
-            <input
-              type="number"
-              id="experience"
-              value={profile.experience}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-              placeholder="e.g., 5"
-            />
-          </div>
-          <div>
-            <label htmlFor="desiredJobRole" className="block text-sm font-medium text-gray-700 mb-1">Desired Job Role</label>
-            <input
-              type="text"
-              id="desiredJobRole"
-              value={profile.desiredJobRole}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-              placeholder="e.g., Senior Frontend Developer"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label htmlFor="resumeUrl" className="block text-sm font-medium text-gray-700 mb-1">Resume URL (Simulated Upload)</label>
-            <input
-              type="url"
-              id="resumeUrl"
-              value={profile.resumeUrl}
-              onChange={handleChange}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-              placeholder="e.g., https://your-resume-link.com/resume.pdf"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              (In a real app, this would be a file upload. Here, we're simulating with a URL.)
-            </p>
-          </div>
-          <div className="md:col-span-2 flex justify-center">
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                  Save Profile
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+// (This entire duplicate definition is removed. No replacement code here.)
 
 
 const InterviewAutomationPage = () => {
@@ -1843,56 +1673,191 @@ const InterviewAutomationPage = () => {
   );
 };
 
+           
 
-const JobSeekerDashboardPage = ({ navigate }) => {
-  const { db, userId, appId } = useAppContext();
-  const [applications, setApplications] = useState([]);
-  const [userProfile, setUserProfile] = useState(null);
+
+const JobSeekerProfilePage = () => {
+  const { db, userId, appId, auth } = useAppContext();
+  const [profile, setProfile] = useState({
+    name: '',
+    email: auth.currentUser?.email || '', // Initialize with auth email
+    skills: '',
+    experience: '',
+    desiredJobRole: '',
+    resumeUrl: '',
+  });
+  const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
 
-  const applicationsCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/applications`) : null;
   const userProfileDocRef = db && userId ? doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile') : null;
 
   useEffect(() => {
-    // Ensure userId is available before attempting Firestore operations
-    if (!userId) {
-      console.log("JobSeekerDashboardPage: userId not available yet.");
-      return;
-    }
-
-    if (!applicationsCollectionRef || !userProfileDocRef) return;
-
-    // Fetch applications
-    const unsubscribeApps = onSnapshot(applicationsCollectionRef, (snapshot) => {
-      const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setApplications(appsData);
-    }, (error) => {
-      console.error("Error fetching applications: ", error);
-      setMessage("Failed to load applications. Please try again.");
-    });
-
-    // Fetch user profile
     const fetchProfile = async () => {
+      if (!userProfileDocRef) {
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
       try {
         const docSnap = await getDoc(userProfileDocRef);
         if (docSnap.exists()) {
-          setUserProfile(docSnap.data());
-        } else {
-          setUserProfile(null); // No profile yet
+          const profileData = docSnap.data();
+          setProfile(prev => ({
+            ...prev,
+            ...profileData,
+            // Don't overwrite email from auth
+            email: auth.currentUser?.email || prev.email
+          }));
         }
+        setMessage("");
       } catch (error) {
-        console.error("Error fetching user profile: ", error);
-        // Do not set a message here as it might interfere with other messages
+        console.error("Error fetching profile: ", error);
+        setMessage("Failed to load profile. Please try again.");
+      } finally {
+        setIsLoading(false);
       }
     };
+    
     fetchProfile();
+  }, [userProfileDocRef, auth.currentUser?.email]);
 
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    if (!userProfileDocRef) {
+      setMessage("Database not available. Please try again later.");
+      return;
+    }
 
-    return () => {
-      unsubscribeApps();
-    };
-  }, [applicationsCollectionRef, userProfileDocRef, userId]); // Add userId to dependencies
+    setIsLoading(true);
+    try {
+      // Don't save email as it's managed by auth
+      const { email, ...profileToSave } = profile;
+      await setDoc(userProfileDocRef, profileToSave);
+      setMessage("Profile saved successfully!");
+    } catch (error) {
+      console.error("Error saving profile: ", error);
+      setMessage("Failed to save profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    setProfile(prev => ({ ...prev, [id]: value }));
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
+      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
+      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
+        <p className="text-center text-gray-600 mb-8">
+          Create or update your profile to get personalized job recommendations and prepare for interviews.
+        </p>
+        <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
+          <div className="md:col-span-2">
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              id="name"
+              value={profile.name}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="Your Full Name"
+              required
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
+            <input
+              type="email"
+              id="email"
+              value={profile.email}
+              readOnly
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (comma-separated)</label>
+            <textarea
+              id="skills"
+              value={profile.skills}
+              onChange={handleChange}
+              rows="3"
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-y transition duration-200"
+              placeholder="e.g., JavaScript, React, Node.js, AWS"
+            />
+          </div>
+          <div>
+            <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+            <input
+              type="number"
+              id="experience"
+              value={profile.experience}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., 5"
+            />
+          </div>
+          <div>
+            <label htmlFor="desiredJobRole" className="block text-sm font-medium text-gray-700 mb-1">Desired Job Role</label>
+            <input
+              type="text"
+              id="desiredJobRole"
+              value={profile.desiredJobRole}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., Senior Frontend Developer"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="resumeUrl" className="block text-sm font-medium text-gray-700 mb-1">Resume URL (Simulated Upload)</label>
+            <input
+              type="url"
+              id="resumeUrl"
+              value={profile.resumeUrl}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., https://your-resume-link.com/resume.pdf"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              (In a real app, this would be a file upload. Here, we're simulating with a URL.)
+            </p>
+          </div>
+          <div className="md:col-span-2 flex justify-center">
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                  </svg>
+                  Save Profile
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
   const handleApply = async (jobTitle) => {
     try {
       const newApplication = {
@@ -1985,7 +1950,7 @@ const JobSeekerDashboardPage = ({ navigate }) => {
             onClick={() => navigate('jobSeekerInterviewPrep')}
             className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2z"></path><path d="M7 6h10M7 9h10M7 12h10M7 15h10"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2"></path><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
             Interview Prep
           </button>
         </div>
@@ -2056,7 +2021,7 @@ const JobSeekerDashboardPage = ({ navigate }) => {
       </div>
     </div>
   );
-};
+;
 
 
 const App = () => {
