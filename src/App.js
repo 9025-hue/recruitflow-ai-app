@@ -156,37 +156,48 @@ const LoginPage = ({ auth, onLoginSuccess, setMessage }) => {
   const [userRole, setUserRole] = useState('recruiter'); // Default role
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false); // New state for modal
 
-  const handleEmailPasswordAuth = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setMessage('');
-    try {
-      let userCredential;
-      if (isRegistering) {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        setMessage('Registration successful! You are now logged in.');
-      } else {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-        setMessage('Login successful!');
-      }
-      // Save user role to Firestore
-      const user = userCredential.user;
-      if (db && user) {
-        await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role'), { role: userRole });
-      }
-      onLoginSuccess(userRole); // Pass the role to the parent
-    } catch (error) {
-      console.error("Authentication error:", error);
-      // More specific message for invalid credentials
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-        setMessage("Authentication failed: Please check your email and password. If you're still having trouble, try 'Sign in with Google' or 'Forgot Password?'.");
-      } else {
-        setMessage(`Authentication failed: ${error.message}`);
-      }
-    } finally {
-      setIsLoading(false);
+  // In the handleEmailPasswordAuth function:
+const handleEmailPasswordAuth = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setMessage('');
+  try {
+    let userCredential;
+    if (isRegistering) {
+      userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      setMessage('Registration successful! You are now logged in.');
+    } else {
+      userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setMessage('Login successful!');
     }
-  };
+    // Save user role to Firestore
+    const user = userCredential.user;
+    if (db && user) {
+      await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role'), { role: userRole });
+    }
+    onLoginSuccess(userRole);
+  } catch (error) {
+    console.error("Authentication error:", error);
+    let errorMessage = `Authentication failed: ${error.message}`;
+    
+    // More specific error messages
+    if (error.code === 'auth/invalid-credential' || 
+        error.code === 'auth/wrong-password' || 
+        error.code === 'auth/user-not-found') {
+      errorMessage = "Invalid email or password. Please try again.";
+    } else if (error.code === 'auth/email-already-in-use') {
+      errorMessage = "This email is already registered. Please log in instead.";
+    } else if (error.code === 'auth/weak-password') {
+      errorMessage = "Password should be at least 6 characters.";
+    } else if (error.code === 'auth/operation-not-allowed') {
+      errorMessage = "Email/password authentication is not enabled. Please contact support.";
+    }
+    
+    setMessage(errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -1101,7 +1112,7 @@ const InterviewAutomationPage = () => {
       // Simulate LLM response
       const prompt = `User: ${chatInput}\nAI:`;
       const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-      const apiKey = ""; // Canvas will provide this at runtime
+      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will provide this at runtime
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
@@ -1452,94 +1463,74 @@ const App = () => {
   appId: "1:196635937156:web:5289a52b9787a8493e35d1",
   measurementId: "G-3TLVSX088F"
   };
+useEffect(() => {
+  const initializeFirebase = async () => {
+    try {
+      const app = initializeApp(firebaseConfig);
+      const firestore = getFirestore(app);
+      const firebaseAuth = getAuth(app);
 
+      setFirebaseApp(app);
+      setDb(firestore);
+      setAuth(firebaseAuth);
 
-  useEffect(() => {
-    const initializeFirebase = async () => {
-      // Check if firebaseConfig contains placeholder values
-      if (firebaseConfig.apiKey === "YOUR_FIREBASE_API_KEY" ||
-          firebaseConfig.authDomain === "YOUR_FIREBASE_AUTH_DOMAIN" ||
-          firebaseConfig.projectId === "YOUR_FIREBASE_PROJECT_ID") {
-        setMessage("Firebase configuration is incomplete. Please replace ALL 'YOUR_FIREBASE_...' placeholder values in App.js with your actual Firebase project credentials. See comments in code for instructions.");
-        setLoadingFirebase(false);
-        setUserId(crypto.randomUUID()); // Still provide a userId for basic app functionality without persistence
-        setUserRole(null); // No role if Firebase is not properly configured
-        return; // Stop initialization
-      }
-
-      try {
-        const app = initializeApp(firebaseConfig);
-        const firestore = getFirestore(app);
-        const firebaseAuth = getAuth(app);
-
-        setFirebaseApp(app);
-        setDb(firestore);
-        setAuth(firebaseAuth);
-
-        // Listen for auth state changes
-        const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-          if (user) {
-            setUserId(user.uid);
-            // Fetch user role
-            const userRoleDocRef = doc(firestore, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role');
-            const docSnap = await getDoc(userRoleDocRef);
-            if (docSnap.exists()) {
-              setUserRole(docSnap.data().role);
-            } else {
-              // If role not found, it might be a new user or an existing one without a role defined yet.
-              // For now, default to 'recruiter' or prompt for role on first login.
-              // For this implementation, we'll default to 'recruiter' if not found,
-              // and the LoginPage will set it on registration.
+      // Listen for auth state changes
+      const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+        if (user) {
+          setUserId(user.uid);
+          // Fetch user role
+          const userRoleDocRef = doc(firestore, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role');
+          const docSnap = await getDoc(userRoleDocRef);
+          if (docSnap.exists()) {
+            setUserRole(docSnap.data().role);
+          } else {
+            setUserRole('recruiter'); // Default role
+          }
+        } else {
+          // Try anonymous auth only if no initial token
+          if (!initialAuthToken) {
+            try {
+              await signInAnonymously(firebaseAuth);
+            } catch (anonError) {
+              console.error("Anonymous auth failed:", anonError);
+              // Fallback to local UUID if auth fails
+              setUserId(crypto.randomUUID());
               setUserRole('recruiter');
             }
-          } else {
-            // If no user, try anonymous sign-in for local testing if no custom token
-            try {
-              if (initialAuthToken) { // Use custom token if available (Canvas environment)
-                await signInWithCustomToken(firebaseAuth, initialAuthToken);
-                setUserId(firebaseAuth.currentUser?.uid);
-                // Fetch user role after custom token sign-in
-                const userRoleDocRef = doc(firestore, `artifacts/${appId}/users/${firebaseAuth.currentUser.uid}/userProfile`, 'role');
-                const docSnap = await getDoc(userRoleDocRef);
-                if (docSnap.exists()) {
-                  setUserRole(docSnap.data().role);
-                } else {
-                  setUserRole('recruiter'); // Default if not found
-                }
-              } else { // Fallback to anonymous sign-in if no custom token (external deployment)
-                await signInAnonymously(firebaseAuth);
-                setUserId(firebaseAuth.currentUser?.uid || crypto.randomUUID());
-                setUserRole('recruiter'); // Default role for anonymous
-              }
-            } catch (authError) {
-              console.error("Firebase Auth Error during initial anonymous/custom token sign-in:", authError);
-              // Only show a general message if it's not a specific login attempt error
-              if (!['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(authError.code)) {
-                setMessage("Authentication failed during initial load. Please check your Firebase project setup and enabled authentication methods.");
-              }
-              setUserId(crypto.randomUUID()); // Use a random ID if auth fails
-              setUserRole(null); // No role if auth fails
-            }
           }
-          setLoadingFirebase(false);
-        });
-
-        return () => unsubscribe(); // Cleanup auth listener
-      } catch (error) {
-        console.error("Failed to initialize Firebase:", error);
-        setMessage("Failed to initialize Firebase. Data persistence may not work. Please ensure your firebaseConfig is correct and all authentication methods are enabled.");
+        }
         setLoadingFirebase(false);
-        setUserId(crypto.randomUUID()); // Fallback to a random ID
-        setUserRole(null); // No role if firebase init fails
-      }
-    };
+      });
 
-    if (!firebaseApp) {
-      initializeFirebase();
-    } else {
+      // If we have an initial token, try to sign in with it
+      if (initialAuthToken) {
+        try {
+          const userCredential = await signInWithCustomToken(firebaseAuth, initialAuthToken);
+          setUserId(userCredential.user.uid);
+        } catch (tokenError) {
+          console.error("Custom token auth failed:", tokenError);
+          setMessage("Authentication failed. Please try logging in manually.");
+        }
+      }
+
+      return unsubscribe;
+    } catch (error) {
+      console.error("Firebase initialization error:", error);
+      setMessage("Failed to initialize Firebase. Some features may not work.");
       setLoadingFirebase(false);
+      setUserId(crypto.randomUUID()); // Fallback ID
+      setUserRole('recruiter'); // Default role
     }
-  }, [firebaseApp, initialAuthToken, firebaseConfig, appId]);
+  };
+
+  if (!firebaseApp) {
+    initializeFirebase();
+  }
+}, [firebaseApp, initialAuthToken, firebaseConfig, appId]);
+
+ 
+
+       
 
   const navigate = (page) => {
     setCurrentPage(page);
