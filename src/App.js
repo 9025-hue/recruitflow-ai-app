@@ -1311,7 +1311,7 @@ const JobSeekerInterviewPrepPage = () => {
         ]
       };
 
-      const apiKey = ""; // Canvas will inject this
+      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will inject this
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
