@@ -1311,7 +1311,7 @@ const JobSeekerInterviewPrepPage = () => {
         ]
       };
 
-      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will inject this
+      const apiKey = ""; // Canvas will inject this
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
@@ -2087,36 +2087,38 @@ const App = () => {
 
   // useEffect hook for Firebase Authentication State Listener
   useEffect(() => {
-    console.log("App.js: useEffect for auth state changed triggered.");
+    console.log(`[${new Date().toISOString()}] App.js: useEffect for auth state changed triggered.`);
 
     const setupAuthAndProfile = async () => {
-      console.log("App.js: Attempting initial sign-in and profile setup.");
+      console.log(`[${new Date().toISOString()}] App.js: Attempting initial sign-in.`);
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          console.log("App.js: Signing in with custom token.");
+          console.log(`[${new Date().toISOString()}] App.js: Signing in with custom token.`);
           await signInWithCustomToken(auth, __initial_auth_token);
+          console.log(`[${new Date().toISOString()}] App.js: Custom token sign-in attempted.`);
         } else {
-          console.log("App.js: __initial_auth_token not defined, signing in anonymously.");
+          console.log(`[${new Date().toISOString()}] App.js: __initial_auth_token not defined, signing in anonymously.`);
           await signInAnonymously(auth);
+          console.log(`[${new Date().toISOString()}] App.js: Anonymous sign-in attempted.`);
         }
       } catch (error) {
-        console.error("App.js: Error during initial sign-in (custom or anonymous):", error);
+        console.error(`[${new Date().toISOString()}] App.js: Error during initial sign-in (custom or anonymous):`, error);
         // Do NOT show a message box for initial sign-in errors, just log and fallback
-        // setMessage(`Authentication failed during initial sign-in. Please try again: ${error.message}`);
         setIsLoading(false); // Stop loading even if initial sign-in fails
         return; // Exit to prevent further execution in this path
       }
 
       // onAuthStateChanged will now handle the user object and profile logic
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-        console.log("App.js: onAuthStateChanged callback triggered. currentUser:", currentUser);
+        console.log(`[${new Date().toISOString()}] App.js: onAuthStateChanged callback triggered. currentUser:`, currentUser ? currentUser.uid : 'null');
         if (currentUser) {
           setUser(currentUser);
-          console.log("App.js: User is logged in. Handling user profile (create/fetch role).");
+          console.log(`[${new Date().toISOString()}] App.js: User is logged in. Handling user profile (create/fetch role).`);
           const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'profile');
           let determinedRole = 'recruiter'; // Default role
 
           try {
+            console.log(`[${new Date().toISOString()}] App.js: Attempting to ensure profile document exists for ${currentUser.uid}.`);
             // Step 1: Ensure the profile document exists with a default role.
             // This will create the document if it doesn't exist, or merge if it does.
             await setDoc(userProfileDocRef, {
@@ -2124,42 +2126,42 @@ const App = () => {
               role: determinedRole, // This will be overwritten if an existing role is found below
               createdAt: new Date(), // Only set on initial creation
             }, { merge: true });
-            console.log("App.js: Profile document ensured (created or updated with default).");
+            console.log(`[${new Date().toISOString()}] App.js: Profile document ensured (created or updated with default).`);
 
             // Step 2: Now that we know the document exists, safely read it to get the actual role.
+            console.log(`[${new Date().toISOString()}] App.js: Attempting to read profile document for ${currentUser.uid}.`);
             const userProfileDocSnap = await getDoc(userProfileDocRef);
             if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
               determinedRole = userProfileDocSnap.data().role;
-              console.log(`App.js: Successfully read profile. Actual role: ${determinedRole}.`);
+              console.log(`[${new Date().toISOString()}] App.js: Successfully read profile. Actual role: ${determinedRole}.`);
             } else {
-              console.log("App.js: Profile exists but role is missing after initial set. Sticking with default.");
+              console.log(`[${new Date().toISOString()}] App.js: Profile exists but role is missing after initial set for ${currentUser.uid}. Sticking with default.`);
               // This case should be rare if setDoc above worked, but for robustness.
             }
 
             setUserRole(determinedRole);
             setCurrentPage(determinedRole === 'recruiter' ? 'home' : 'jobSeeker');
-            console.log(`App.js: Navigating to ${currentPage} for role ${determinedRole}.`);
+            console.log(`[${new Date().toISOString()}] App.js: Navigating to ${currentPage} for role ${determinedRole}.`);
 
           } catch (profileError) {
-            console.error("App.js: Error during user profile setup (get/set):", profileError);
+            console.error(`[${new Date().toISOString()}] App.js: Error during user profile setup (get/set) for ${currentUser.uid}:`, profileError);
             // DO NOT set a user-facing message here directly related to permissions on load.
             // The goal is to avoid the "Failed to load user profile" message on initial open.
             // Instead, log the error and ensure the app transitions out of loading.
-            // setMessage(`An issue occurred with your profile. Please try logging in again. (Error: ${profileError.message})`);
             setCurrentPage('login'); // Fallback to login
           }
         } else {
-          console.log("App.js: No user logged in. Setting to login page.");
+          console.log(`[${new Date().toISOString()}] App.js: No user logged in. Setting to login page.`);
           setUser(null);
           setUserRole(null);
           setCurrentPage('login');
         }
         setIsLoading(false); // Always stop loading here
-        console.log("App.js: setIsLoading(false) called by onAuthStateChanged.");
+        console.log(`[${new Date().toISOString()}] App.js: setIsLoading(false) called by onAuthStateChanged. Loading complete.`);
       });
 
       return () => {
-        console.log("App.js: Cleaning up auth state listener.");
+        console.log(`[${new Date().toISOString()}] App.js: Cleaning up auth state listener.`);
         unsubscribe();
       };
     };
@@ -2174,7 +2176,7 @@ const App = () => {
    * @param {string} page - The identifier of the page to navigate to.
    */
   const navigate = (page) => {
-    console.log(`App.js: Navigating to page: ${page}`);
+    console.log(`[${new Date().toISOString()}] App.js: Navigating to page: ${page}`);
     setCurrentPage(page);
   };
 
@@ -2183,7 +2185,7 @@ const App = () => {
    * @param {string} role - The role of the logged-in user ('recruiter' or 'jobSeeker').
    */
   const handleLoginSuccess = (role) => {
-    console.log(`App.js: Login successful for role: ${role}`);
+    console.log(`[${new Date().toISOString()}] App.js: Login successful for role: ${role}`);
     setUserRole(role);
     setMessage('Logged in successfully!');
     // Redirect based on role after successful login
@@ -2199,13 +2201,13 @@ const App = () => {
    */
   const handleLogout = async () => {
     try {
-      console.log("App.js: Attempting to log out.");
+      console.log(`[${new Date().toISOString()}] App.js: Attempting to log out.`);
       await signOut(auth);
       setMessage('Logged out successfully!');
       navigate('login'); // Redirect to login page after logout
-      console.log("App.js: Logout successful.");
+      console.log(`[${new Date().toISOString()}] App.js: Logout successful.`);
     } catch (error) {
-      console.error("App.js: Logout error:", error);
+      console.error(`[${new Date().toISOString()}] App.js: Logout error:`, error);
       setMessage(`Logout failed: ${error.message}`);
     }
   };
@@ -2215,16 +2217,16 @@ const App = () => {
    */
   const renderPage = () => {
     if (isLoading) {
-      console.log("App.js: Rendering LoadingSpinner.");
+      console.log(`[${new Date().toISOString()}] App.js: Rendering LoadingSpinner.`);
       return <LoadingSpinner />;
     }
 
     if (!user) {
-      console.log("App.js: No user, rendering LoginPage.");
+      console.log(`[${new Date().toISOString()}] App.js: No user, rendering LoginPage.`);
       return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
     }
 
-    console.log(`App.js: User logged in (${user.uid}), current role: ${userRole}, current page: ${currentPage}`);
+    console.log(`[${new Date().toISOString()}] App.js: User logged in (${user.uid}), current role: ${userRole}, current page: ${currentPage}`);
     // Render pages based on currentPage and userRole
     switch (currentPage) {
       case 'home':
