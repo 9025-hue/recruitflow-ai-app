@@ -1441,21 +1441,32 @@ const App = () => {
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'my-recruitment-app-local';
   const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-  // IMPORTANT: Replace this with your actual Firebase project configuration for external deployments (e.g., Vercel, Netlify)
-  // You can find this in your Firebase project settings -> Project settings -> General -> Your apps -> Web app -> Firebase SDK snippet -> Config
+  // IMPORTANT: You MUST replace these placeholder values with your actual Firebase project configuration for external deployments (e.g., Vercel, Netlify).
+  // You can find this in your Firebase project settings -> Project settings -> General -> Your apps -> Web app -> Firebase SDK snippet -> Config.
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-    apiKey: "YOUR_FIREBASE_API_KEY", // Replace with your actual API Key
-    authDomain: "YOUR_FIREBASE_AUTH_DOMAIN", // Replace with your actual Auth Domain
-    projectId: "YOUR_FIREBASE_PROJECT_ID", // Replace with your actual Project ID
-    storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET", // Replace with your actual Storage Bucket
-    messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID", // Replace with your actual Messaging Sender ID
-    appId: "YOUR_FIREBASE_APP_ID", // Replace with your actual App ID
-    measurementId: "YOUR_FIREBASE_MEASUREMENT_ID" // Replace with your actual Measurement ID (optional)
+   apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
+  authDomain: "hackathon-99817.firebaseapp.com",
+  projectId: "hackathon-99817",
+  storageBucket: "hackathon-99817.firebasestorage.app",
+  messagingSenderId: "196635937156",
+  appId: "1:196635937156:web:5289a52b9787a8493e35d1",
+  measurementId: "G-3TLVSX088F"
   };
 
 
   useEffect(() => {
     const initializeFirebase = async () => {
+      // Check if firebaseConfig contains placeholder values
+      if (firebaseConfig.apiKey === "YOUR_FIREBASE_API_KEY" ||
+          firebaseConfig.authDomain === "YOUR_FIREBASE_AUTH_DOMAIN" ||
+          firebaseConfig.projectId === "YOUR_FIREBASE_PROJECT_ID") {
+        setMessage("Firebase configuration is incomplete. Please replace ALL 'YOUR_FIREBASE_...' placeholder values in App.js with your actual Firebase project credentials. See comments in code for instructions.");
+        setLoadingFirebase(false);
+        setUserId(crypto.randomUUID()); // Still provide a userId for basic app functionality without persistence
+        setUserRole(null); // No role if Firebase is not properly configured
+        return; // Stop initialization
+      }
+
       try {
         const app = initializeApp(firebaseConfig);
         const firestore = getFirestore(app);
@@ -1504,7 +1515,7 @@ const App = () => {
               console.error("Firebase Auth Error during initial anonymous/custom token sign-in:", authError);
               // Only show a general message if it's not a specific login attempt error
               if (!['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(authError.code)) {
-                setMessage("Authentication failed during initial load. Some features may not work. Please check your Firebase project setup and enabled authentication methods.");
+                setMessage("Authentication failed during initial load. Please check your Firebase project setup and enabled authentication methods.");
               }
               setUserId(crypto.randomUUID()); // Use a random ID if auth fails
               setUserRole(null); // No role if auth fails
@@ -1516,7 +1527,7 @@ const App = () => {
         return () => unsubscribe(); // Cleanup auth listener
       } catch (error) {
         console.error("Failed to initialize Firebase:", error);
-        setMessage("Failed to initialize Firebase. Data persistence may not work. Please ensure your firebaseConfig is correct.");
+        setMessage("Failed to initialize Firebase. Data persistence may not work. Please ensure your firebaseConfig is correct and all authentication methods are enabled.");
         setLoadingFirebase(false);
         setUserId(crypto.randomUUID()); // Fallback to a random ID
         setUserRole(null); // No role if firebase init fails
