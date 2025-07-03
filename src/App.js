@@ -1499,304 +1499,200 @@ const JobSeekerInterviewPrepPage = () => {
 /**
  * InterviewAutomationPage allows recruiters to conduct automated interviews with candidates.
  */
-const InterviewAutomationPage = () => {
-  const { db, userId, appId, setMessage } = useAppContext();
-  const [candidateName, setCandidateName] = useState('');
-  const [jobRole, setJobRole] = useState('');
-  const [chatHistory, setChatHistory] = useState([]);
-  const [currentMessage, setCurrentMessage] = useState('');
-  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
-  const [interviewRunning, setInterviewRunning] = useState(false);
-  const [sentimentAnalysis, setSentimentAnalysis] = useState(null);
-
-  // Reference to the Firestore collection for recruiter interview chats
-  const chatHistoryCollectionRef = useMemo(() => {
-    if (db && userId && appId) {
-      return collection(db, `artifacts/${appId}/users/${userId}/recruiterInterviewChats`);
+const InterviewChatbot = () => {
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      sender: 'bot',
+      text: 'Hello! I\'m your AI interview assistant. I can help you practice interview questions or conduct mock interviews. What would you like to work on today?',
+      timestamp: new Date().toLocaleTimeString()
     }
-    return null;
-  }, [db, userId, appId]);
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [interviewMode, setInterviewMode] = useState('practice'); // 'practice' or 'mock'
 
-  // Fetch chat history in real-time
-  useEffect(() => {
-    if (!chatHistoryCollectionRef) return;
-
-    const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
-      const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setChatHistory(chats.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0)));
-    }, (error) => {
-      console.error("Error fetching chat history: ", error);
-      setMessage("Failed to load chat history. Please try again.");
-    });
-
-    return () => unsubscribe();
-  }, [chatHistoryCollectionRef, setMessage]);
-
-  /**
-   * Starts the automated interview session.
-   */
-  const startInterview = async () => {
-    if (!candidateName.trim() || !jobRole.trim()) {
-      setMessage("Please enter candidate name and job role to start the interview.");
-      return;
-    }
-    if (!chatHistoryCollectionRef) {
-      setMessage("Database not ready. Please try again.");
-      return;
-    }
-
-    setChatHistory([]);
-    setSentimentAnalysis(null);
-    setInterviewRunning(true);
-    setMessage("Interview started!");
-
-    // Initial AI greeting for the candidate
-    const initialAiMessage = {
-      sender: 'AI',
-      text: `Hello ${candidateName}, welcome to your interview for the ${jobRole} position. Could you please start by telling me a bit about your experience?`,
-      timestamp: new Date(),
-    };
-    await addDoc(chatHistoryCollectionRef, initialAiMessage);
+  const interviewQuestions = {
+    general: [
+      "Tell me about yourself.",
+      "What are your greatest strengths?",
+      "What is your biggest weakness?",
+      "Why do you want to work here?",
+      "Where do you see yourself in 5 years?"
+    ],
+    technical: [
+      "Explain the difference between let, const, and var in JavaScript.",
+      "What is the difference between SQL and NoSQL databases?",
+      "How would you optimize a slow-performing web application?",
+      "Explain the concept of object-oriented programming.",
+      "What is the difference between GET and POST requests?"
+    ],
+    behavioral: [
+      "Describe a time when you had to work under pressure.",
+      "Tell me about a conflict you had with a teammate and how you resolved it.",
+      "Give an example of when you had to learn something new quickly.",
+      "Describe a project you're particularly proud of.",
+      "How do you handle criticism?"
+    ]
   };
 
-  /**
-   * Sends a message (as the recruiter/interviewer) to the AI chatbot.
-   * The AI will respond as if it's the candidate.
-   */
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!currentMessage.trim() || !interviewRunning) return;
-    if (!chatHistoryCollectionRef) {
-      setMessage("Database not ready. Please try again.");
-      return;
+  const getBotResponse = (userMessage) => {
+    const message = userMessage.toLowerCase();
+    
+    if (message.includes('practice') || message.includes('question')) {
+      const categories = Object.keys(interviewQuestions);
+      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+      const questions = interviewQuestions[randomCategory];
+      const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+      return `Here's a ${randomCategory} interview question for you to practice: "${randomQuestion}". Take your time to think about it and respond when ready!`;
     }
+    
+    if (message.includes('mock interview') || message.includes('start interview')) {
+      setInterviewMode('mock');
+      return "Great! Let's start a mock interview. I'll ask you a series of questions just like in a real interview. Are you ready? Let's begin with: Tell me about yourself and your background.";
+    }
+    
+    if (message.includes('tip') || message.includes('advice')) {
+      const tips = [
+        "Remember to use the STAR method (Situation, Task, Action, Result) when answering behavioral questions.",
+        "Research the company thoroughly before your interview.",
+        "Prepare specific examples that demonstrate your skills and achievements.",
+        "Practice your answers out loud, but don't memorize them word-for-word.",
+        "Prepare thoughtful questions to ask the interviewer about the role and company.",
+        "Make sure to highlight your unique value proposition and what sets you apart."
+      ];
+      return tips[Math.floor(Math.random() * tips.length)];
+    }
+    
+    if (message.includes('thank') || message.includes('thanks')) {
+      return "You're welcome! I'm here to help you succeed in your interviews. Would you like to practice more questions or get some interview tips?";
+    }
+    
+    if (interviewMode === 'mock') {
+      const followUpQuestions = [
+        "That's interesting. Can you tell me more about your experience with [specific skill]?",
+        "Great! Now, what do you consider your biggest professional achievement?",
+        "How do you handle working under tight deadlines?",
+        "What interests you most about this role?",
+        "Do you have any questions for me about the position or company?"
+      ];
+      return followUpQuestions[Math.floor(Math.random() * followUpQuestions.length)];
+    }
+    
+    return "I can help you with interview practice, mock interviews, or provide tips and advice. What would you like to work on?";
+  };
 
-    // Add user message (recruiter's question) to chat history
+  const sendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
     const userMessage = {
-      sender: 'User', // User here means the recruiter
-      text: currentMessage,
-      timestamp: new Date(),
+      id: messages.length + 1,
+      sender: 'user',
+      text: inputMessage,
+      timestamp: new Date().toLocaleTimeString()
     };
-    await addDoc(chatHistoryCollectionRef, userMessage);
-    setCurrentMessage('');
-    setIsLoadingResponse(true);
 
-    try {
-      // Format chat history for Gemini API
-      // The AI will act as the candidate, so previous AI messages are candidate responses
-      const formattedHistory = chatHistory.map(msg => ({
-        role: msg.sender === 'User' ? 'user' : 'model', // User is recruiter, Model is AI (candidate)
-        parts: [{ text: msg.text }]
-      }));
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsTyping(true);
 
-      // Add current recruiter message to history for the API call
-      formattedHistory.push({
-        role: 'user',
-        parts: [{ text: userMessage.text }]
-      });
-
-      // Prepare the request payload
-      const payload = {
-        contents: formattedHistory,
-        generationConfig: {
-          temperature: 0.9,
-          topK: 1,
-          topP: 1,
-          maxOutputTokens: 2048,
-          stopSequences: []
-        },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
-        ]
+    // Simulate bot thinking time
+    setTimeout(() => {
+      const botResponse = {
+        id: messages.length + 2,
+        sender: 'bot',
+        text: getBotResponse(inputMessage),
+        timestamp: new Date().toLocaleTimeString()
       };
-
-      const apiKey = ""; // Canvas will inject this
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
-      if (result.candidates && result.candidates[0]?.content?.parts) {
-        aiResponseText = result.candidates[0].content.parts[0].text;
-      }
-
-      // Add AI response (candidate's reply) to chat history
-      const aiMessage = {
-        sender: 'AI', // AI is acting as the candidate
-        text: aiResponseText,
-        timestamp: new Date(),
-      };
-      await addDoc(chatHistoryCollectionRef, aiMessage);
-
-      // Simulate sentiment analysis (can be replaced with actual API call)
-      const sentimentScore = Math.random() * 2 - 1; // Between -1 and 1
-      const sentiment = sentimentScore > 0.5 ? 'Positive' : sentimentScore < -0.5 ? 'Negative' : 'Neutral';
-      setSentimentAnalysis({ score: sentimentScore.toFixed(2), sentiment: sentiment });
-
-    } catch (error) {
-      console.error("Error generating AI response:", error);
-      setMessage("Failed to get AI response. Please try again.");
-
-      // Add error message to chat
-      const errorMessage = {
-        sender: 'AI',
-        text: "I'm having trouble responding right now. Could you please rephrase your question?",
-        timestamp: new Date(),
-      };
-      await addDoc(chatHistoryCollectionRef, errorMessage);
-    } finally {
-      setIsLoadingResponse(false);
-    }
+      setMessages(prev => [...prev, botResponse]);
+      setIsTyping(false);
+    }, 1000);
   };
 
-  /**
-   * Ends the automated interview session.
-   */
-  const endInterview = () => {
-    setInterviewRunning(false);
-    setMessage("Interview ended. Review the chat history and sentiment analysis.");
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 p-4 md:p-8">
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Automation (Recruiter View)</h2>
-        <p className="text-center text-gray-600 mb-8">
-          This section is for recruiters to conduct automated interviews. Job seekers can find their interview prep tool in their dashboard.
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Assistant</h2>
+        <p className="text-center text-gray-600 mb-6">
+          Practice interview questions, get tips, or take a mock interview to boost your confidence!
         </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
-          <div>
-            <label htmlFor="candidateNameInput" className="block text-sm font-medium text-gray-700 mb-1">Candidate Name</label>
-            <input
-              type="text"
-              id="candidateNameInput"
-              value={candidateName}
-              onChange={(e) => setCandidateName(e.target.value)}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
-              placeholder="Alice Johnson"
-              disabled={interviewRunning}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="jobRoleInput" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label>
-            <input
-              type="text"
-              id="jobRoleInput"
-              value={jobRole}
-              onChange={(e) => setJobRole(e.target.value)}
-              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
-              placeholder="Software Engineer"
-              disabled={interviewRunning}
-              required
-            />
-          </div>
-          <div className="md:col-span-2 flex justify-center space-x-4">
-            {!interviewRunning ? (
-              <button
-                onClick={startInterview}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                Start Interview
-              </button>
-            ) : (
-              <button
-                onClick={endInterview}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-                End Interview
-              </button>
-            )}
-          </div>
-        </div>
-
-        {interviewRunning && (
-          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-200 mb-8">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Chat Transcripts</h3>
-            <div className="h-80 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-white mb-4 custom-scrollbar">
-              {chatHistory.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`mb-3 p-3 rounded-lg max-w-[80%] ${
-                    msg.sender === 'User'
-                      ? 'bg-blue-100 text-blue-800 ml-auto rounded-br-none'
-                      : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                  }`}
-                >
-                  <p className="font-semibold">{msg.sender}:</p>
-                  <p>{msg.text}</p>
-                  <span className="block text-right text-xs text-gray-500 mt-1">
-                    {msg.timestamp?.toDate ?
-                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() :
-                      new Date(msg.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))}
-              {isLoadingResponse && (
-                <div className="mb-3 p-3 rounded-lg max-w-[80%] bg-gray-200 text-gray-800 rounded-bl-none">
-                  <p className="font-semibold">AI:</p>
-                  <div className="flex items-center">
-                    <span className="animate-pulse">Typing...</span>
-                    <svg className="animate-bounce h-4 w-4 text-gray-500 ml-2" viewBox="0 0 24 24">
-                      <circle fill="currentColor" cx="4" cy="12" r="3" />
-                      <circle fill="currentColor" cx="12" cy="12" r="3" />
-                      <circle fill="currentColor" cx="20" cy="12" r="3" />
-                    </svg>
-                  </div>
-                </div>
-              )}
+        
+        {/* Chat Interface */}
+        <div className="bg-gray-50 rounded-2xl p-4 mb-4 h-96 overflow-y-auto">
+          {messages.map((message) => (
+            <div key={message.id} className={`mb-4 ${message.sender === 'user' ? 'text-right' : 'text-left'}`}>
+              <div className={`inline-block p-3 rounded-lg max-w-xs md:max-w-md ${
+                message.sender === 'user' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-white text-gray-800 border border-gray-300'
+              }`}>
+                <p className="text-sm">{message.text}</p>
+                <span className="text-xs opacity-75 mt-1 block">{message.timestamp}</span>
+              </div>
             </div>
-            <form onSubmit={sendMessage} className="flex space-x-3">
-              <input
-                type="text"
-                value={currentMessage}
-                onChange={(e) => setCurrentMessage(e.target.value)}
-                className="flex-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500"
-                placeholder="Type your message here..."
-                disabled={isLoadingResponse}
-              />
-              <button
-                type="submit"
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-                disabled={isLoadingResponse}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-              </button>
-            </form>
-          </div>
-        )}
-
-        {sentimentAnalysis && (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-inner">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6zm0-8h2V7h-2v2z"></path></svg>
-              Sentiment Analysis
-            </h3>
-            <p className="text-lg text-gray-800">
-              Overall Interview Sentiment: <span className={`font-bold ${
-                sentimentAnalysis.sentiment === 'Positive' ? 'text-green-600' :
-                sentimentAnalysis.sentiment === 'Negative' ? 'text-red-600' :
-                'text-gray-600'
-              }`}>{sentimentAnalysis.sentiment}</span> (Score: {sentimentAnalysis.score})
-            </p>
-          </div>
-        )}
+          ))}
+          
+          {isTyping && (
+            <div className="text-left mb-4">
+              <div className="inline-block p-3 rounded-lg bg-white text-gray-800 border border-gray-300">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Input Area */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Type your message here..."
+            className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+          />
+          <button
+            onClick={sendMessage}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition duration-200 flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22,2 15,22 11,13 2,9"></polygon>
+            </svg>
+          </button>
+        </div>
+        
+        {/* Quick Actions */}
+        <div className="mt-6 flex flex-wrap gap-2 justify-center">
+          <button
+            onClick={() => setInputMessage('Give me a practice question')}
+            className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 rounded-full text-sm transition duration-200"
+          >
+            Practice Question
+          </button>
+          <button
+            onClick={() => setInputMessage('Start a mock interview')}
+            className="bg-green-100 hover:bg-green-200 text-green-800 px-4 py-2 rounded-full text-sm transition duration-200"
+          >
+            Mock Interview
+          </button>
+          <button
+            onClick={() => setInputMessage('Give me an interview tip')}
+            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-4 py-2 rounded-full text-sm transition duration-200"
+          >
+            Interview Tips
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1806,7 +1702,7 @@ const InterviewAutomationPage = () => {
  * JobSeekerProfilePage allows job seekers to manage their profile.
  */
 const JobSeekerProfilePage = () => {
-  const { auth, userId, appId } = useAppContext();
+  const { db, auth } = useFirebase();
   const [profile, setProfile] = useState({
     name: '',
     email: auth.currentUser?.email || '',
@@ -1816,13 +1712,30 @@ const JobSeekerProfilePage = () => {
     resumeUrl: '',
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('success');
+
+  // Get current user ID
+  const userId = auth.currentUser?.uid;
 
   useEffect(() => {
     const fetchProfile = async () => {
+      if (!userId) {
+        setMessage('Please log in to view your profile.');
+        setMessageType('error');
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const docSnap = await mockGetDoc();
+        // Create reference to user's profile document
+        const profileRef = doc(db, 'profiles', userId);
+        
+        // Fetch the document
+        const docSnap = await getDoc(profileRef);
+        
         if (docSnap.exists()) {
           const profileData = docSnap.data();
           setProfile(prev => ({
@@ -1830,29 +1743,69 @@ const JobSeekerProfilePage = () => {
             ...profileData,
             email: auth.currentUser?.email || prev.email
           }));
+          setMessage('Profile loaded successfully!');
+          setMessageType('success');
+        } else {
+          // New user - keep empty profile
+          setProfile(prev => ({
+            ...prev,
+            email: auth.currentUser?.email || prev.email
+          }));
+          setMessage('Welcome! Please complete your profile.');
+          setMessageType('success');
         }
-        setMessage("");
       } catch (error) {
-        console.error("Error fetching profile: ", error);
-        setMessage("Failed to load profile. Please try again.");
+        console.error("Error fetching profile from Firebase: ", error);
+        setMessage(`Failed to load profile: ${error.message}`);
+        setMessageType('error');
       } finally {
         setIsLoading(false);
       }
     };
+
     fetchProfile();
-  }, [auth.currentUser?.email]);
+  }, [db, auth.currentUser?.email, userId]);
 
   const handleProfileSave = async () => {
-    setIsLoading(true);
+    if (!userId) {
+      setMessage('Please log in to save your profile.');
+      setMessageType('error');
+      return;
+    }
+
+    // Basic validation
+    if (!profile.name.trim()) {
+      setMessage('Please enter your name.');
+      setMessageType('error');
+      return;
+    }
+
+    setIsSaving(true);
     try {
+      // Prepare data for Firebase (exclude email as it's managed by auth)
       const { email, ...profileToSave } = profile;
-      await mockSetDoc();
-      setMessage("Profile saved successfully!");
+      
+      // Add timestamp
+      const profileData = {
+        ...profileToSave,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString() // This will be ignored if document exists
+      };
+
+      // Create reference to user's profile document
+      const profileRef = doc(db, 'profiles', userId);
+      
+      // Save to Firebase
+      await setDoc(profileRef, profileData, { merge: true });
+      
+      setMessage('Profile saved successfully!');
+      setMessageType('success');
     } catch (error) {
-      console.error("Error saving profile: ", error);
-      setMessage("Failed to save profile. Please try again.");
+      console.error("Error saving profile to Firebase: ", error);
+      setMessage(`Failed to save profile: ${error.message}`);
+      setMessageType('error');
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -1861,19 +1814,42 @@ const JobSeekerProfilePage = () => {
     setProfile(prev => ({ ...prev, [id]: value }));
   };
 
+  const clearMessage = () => {
+    setMessage('');
+  };
+
   if (isLoading) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
+      {message && (
+        <MessageBox 
+          message={message} 
+          type={messageType}
+          onClose={clearMessage} 
+        />
+      )}
+      
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-800">My Job Seeker Profile</h2>
+          <div className="flex items-center text-sm text-gray-500">
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Connected to Firebase
+          </div>
+        </div>
+        
         <p className="text-center text-gray-600 mb-8">
           Create or update your profile to get personalized job recommendations and prepare for interviews.
         </p>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
           <div className="md:col-span-2">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name *
+            </label>
             <input
               type="text"
               id="name"
@@ -1881,10 +1857,14 @@ const JobSeekerProfilePage = () => {
               onChange={handleChange}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="Your Full Name"
+              required
             />
           </div>
+          
           <div className="md:col-span-2">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email (From Firebase Auth)
+            </label>
             <input
               type="email"
               id="email"
@@ -1892,9 +1872,15 @@ const JobSeekerProfilePage = () => {
               readOnly
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Email is managed by Firebase Authentication
+            </p>
           </div>
+          
           <div className="md:col-span-2">
-            <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (comma-separated)</label>
+            <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">
+              Skills (comma-separated)
+            </label>
             <textarea
               id="skills"
               value={profile.skills}
@@ -1904,19 +1890,27 @@ const JobSeekerProfilePage = () => {
               placeholder="e.g., JavaScript, React, Node.js, AWS"
             />
           </div>
+          
           <div>
-            <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+            <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-1">
+              Years of Experience
+            </label>
             <input
               type="number"
               id="experience"
               value={profile.experience}
               onChange={handleChange}
+              min="0"
+              max="50"
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="e.g., 5"
             />
           </div>
+          
           <div>
-            <label htmlFor="desiredJobRole" className="block text-sm font-medium text-gray-700 mb-1">Desired Job Role</label>
+            <label htmlFor="desiredJobRole" className="block text-sm font-medium text-gray-700 mb-1">
+              Desired Job Role
+            </label>
             <input
               type="text"
               id="desiredJobRole"
@@ -1926,8 +1920,11 @@ const JobSeekerProfilePage = () => {
               placeholder="e.g., Senior Frontend Developer"
             />
           </div>
+          
           <div className="md:col-span-2">
-            <label htmlFor="resumeUrl" className="block text-sm font-medium text-gray-700 mb-1">Resume URL (Simulated Upload)</label>
+            <label htmlFor="resumeUrl" className="block text-sm font-medium text-gray-700 mb-1">
+              Resume URL
+            </label>
             <input
               type="url"
               id="resumeUrl"
@@ -1937,20 +1934,24 @@ const JobSeekerProfilePage = () => {
               placeholder="e.g., https://your-resume-link.com/resume.pdf"
             />
             <p className="text-xs text-gray-500 mt-1">
-              (In a real app, this would be a file upload. Here, we're simulating with a URL.)
+              Link to your resume hosted on Google Drive, Dropbox, or your personal website
             </p>
           </div>
+          
           <div className="md:col-span-2 flex justify-center">
             <button
               onClick={handleProfileSave}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-              disabled={isLoading}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              disabled={isSaving}
             >
-              {isLoading ? (
-                <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving to Firebase...
+                </>
               ) : (
                 <>
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1958,16 +1959,28 @@ const JobSeekerProfilePage = () => {
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
                     <polyline points="7 3 7 8 15 8"></polyline>
                   </svg>
-                  Save Profile
+                  Save to Firebase
                 </>
               )}
             </button>
+          </div>
+        </div>
+        
+        {/* Firebase Status */}
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="text-sm font-medium text-blue-800 mb-2">Firebase Integration Status</h3>
+          <div className="text-sm text-blue-700">
+            <p>• User ID: {userId || 'Not authenticated'}</p>
+            <p>• Database: Connected to Firestore</p>
+            <p>• Collection: profiles</p>
+            <p>• Document: {userId || 'N/A'}</p>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
 /**
  * JobSeekerDashboardPage displays job listings and the user's applications.
  */
