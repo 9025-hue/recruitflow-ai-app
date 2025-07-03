@@ -1382,10 +1382,10 @@ const JobSeekerInterviewPrepPage = () => {
 
 // New Job Seeker Profile Page
 const JobSeekerProfilePage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, auth } = useAppContext(); // Get auth from context
   const [profile, setProfile] = useState({
     name: '',
-    email: '',
+    email: '', // Initialize with empty string
     skills: '',
     experience: '',
     desiredJobRole: '',
@@ -1398,24 +1398,38 @@ const JobSeekerProfilePage = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!userProfileDocRef || !userId) return; // Ensure userId is available
+      if (!userProfileDocRef || !userId) {
+        setIsLoading(false); // Ensure loading is false if prerequisites are not met
+        return;
+      }
       setIsLoading(true);
       try {
         const docSnap = await getDoc(userProfileDocRef);
+        let profileData = {};
         if (docSnap.exists()) {
-          setProfile(docSnap.data());
+          profileData = docSnap.data();
         } else {
           setMessage("No profile found. Please create your profile.");
         }
+        // Always set the email from the authenticated user, as it's read-only
+        setProfile(prev => ({
+          ...prev,
+          ...profileData,
+          email: auth.currentUser?.email || profileData.email || '' // Use auth.currentUser.email if available
+        }));
       } catch (error) {
         console.error("Error fetching profile: ", error);
         setMessage("Failed to load profile. Please try again.");
+        setProfile(prev => ({ // Ensure email is still set from auth even on error
+          ...prev,
+          email: auth.currentUser?.email || ''
+        }));
       } finally {
         setIsLoading(false);
       }
     };
     fetchProfile();
-  }, [userProfileDocRef, userId]); // Add userId to dependencies
+  }, [userProfileDocRef, userId, auth.currentUser?.email]); // Add auth.currentUser?.email to dependencies
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -1425,7 +1439,9 @@ const JobSeekerProfilePage = () => {
     }
     setIsLoading(true);
     try {
-      await setDoc(userProfileDocRef, profile, { merge: true });
+      // Do not save email as it's read-only and managed by Auth
+      const { email, ...profileToSave } = profile; 
+      await setDoc(userProfileDocRef, profileToSave, { merge: true });
       setMessage("Profile saved successfully!");
     } catch (error) {
       console.error("Error saving profile: ", error);
@@ -1466,7 +1482,7 @@ const JobSeekerProfilePage = () => {
             <input
               type="email"
               id="email"
-              value={profile.email || (userId ? `${userId.substring(0, 8)}...` : '')} // Display actual email if available, else truncated UID
+              value={profile.email} // Use profile.email directly
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
               disabled
             />
