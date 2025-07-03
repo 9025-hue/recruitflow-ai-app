@@ -733,7 +733,6 @@ const BiasDetectionPage = () => {
             )}
           </button>
         </div>
-
         {biasAnalysis && (
           <div className="bg-purple-50 border border-purple-200 rounded-2xl p-6 mt-8 shadow-inner">
             <h3 className="text-2xl font-semibold text-gray-700 mb-4 flex items-center">
@@ -814,6 +813,7 @@ const InterviewSchedulingPage = () => {
         link,
         timestamp: new Date(),
       };
+
       await addDoc(schedulesCollectionRef, newSchedule);
       setMessage("Interview scheduled successfully!");
       setCandidateName('');
@@ -843,7 +843,6 @@ const InterviewSchedulingPage = () => {
       {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-5xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Automated Interview Scheduling</h2>
-
         <form onSubmit={handleScheduleInterview} className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
           <div className="md:col-span-2">
             <h3 className="text-2xl font-semibold text-gray-700 mb-4">Schedule a New Interview</h3>
@@ -856,10 +855,9 @@ const InterviewSchedulingPage = () => {
               value={candidateName}
               onChange={(e) => setCandidateName(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
-              placeholder="Alice Johnson"
+              placeholder="Jane Doe"
             />
           </div>
-          {/* Corrected: Added missing div wrapper for interviewerName */}
           <div>
             <label htmlFor="interviewerName" className="block text-sm font-medium text-gray-700 mb-1">Interviewer Name</label>
             <input
@@ -868,7 +866,7 @@ const InterviewSchedulingPage = () => {
               value={interviewerName}
               onChange={(e) => setInterviewerName(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
-              placeholder="Bob Smith"
+              placeholder="John Smith"
             />
           </div>
           <div>
@@ -899,7 +897,7 @@ const InterviewSchedulingPage = () => {
               value={link}
               onChange={(e) => setLink(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
-              placeholder="https://meet.google.com/xyz-abc"
+              placeholder="https://meet.google.com/xyz-abc-pqr"
             />
           </div>
           <div className="md:col-span-2 flex justify-center">
@@ -913,7 +911,7 @@ const InterviewSchedulingPage = () => {
           </div>
         </form>
 
-        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Upcoming Interviews</h3>
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Scheduled Interviews</h3>
         {schedules.length === 0 ? (
           <p className="text-center text-gray-600 text-lg">No interviews scheduled yet. Schedule one above!</p>
         ) : (
@@ -936,8 +934,8 @@ const InterviewSchedulingPage = () => {
                     <td className="py-3 px-4 text-sm text-gray-800">{schedule.interviewerName}</td>
                     <td className="py-3 px-4 text-sm text-gray-800">{schedule.date}</td>
                     <td className="py-3 px-4 text-sm text-gray-800">{schedule.time}</td>
-                    <td className="py-3 px-4 text-sm text-gray-800">
-                      <a href={schedule.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Join Meeting</a>
+                    <td className="py-3 px-4 text-sm text-blue-600 underline truncate max-w-xs">
+                      <a href={schedule.link} target="_blank" rel="noopener noreferrer" className="hover:text-blue-800">{schedule.link}</a>
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800">
                       <button
@@ -981,111 +979,75 @@ const CandidateDashboardPage = () => {
     return () => unsubscribe();
   }, [candidatesCollectionRef]);
 
-  // Process data for dashboard
+  // Calculate statistics
   const totalCandidates = candidates.length;
-  const avgScore = totalCandidates > 0 ? (candidates.reduce((sum, c) => sum + c.aiScore, 0) / totalCandidates).toFixed(1) : 0;
-  const statusCounts = candidates.reduce((acc, c) => {
-    const status = c.fitMessage.includes('Excellent') ? 'Excellent Fit' : c.fitMessage.includes('Good') ? 'Good Potential' : 'Needs Evaluation';
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const topSkills = candidates.flatMap(c => c.skills.split(',').map(s => s.trim()))
-    .reduce((acc, skill) => {
-      acc[skill] = (acc[skill] || 0) + 1;
-      return acc;
-    }, {});
-
-  const sortedSkills = Object.entries(topSkills).sort(([, a], [, b]) => b - a).slice(0, 5);
+  const avgScore = totalCandidates > 0
+    ? (candidates.reduce((sum, c) => sum + c.aiScore, 0) / totalCandidates).toFixed(1)
+    : 0;
+  const highPotentialCandidates = candidates.filter(c => c.aiScore >= 80).length;
+  const interviewsScheduled = 0; // This data would ideally come from another collection/query
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-blue-100 p-4 md:p-8">
       {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-6xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Candidate Analytics Dashboard</h2>
-        <p className="text-center text-gray-600 mb-8">
-          Get detailed insights into your candidate pool with smart data analysis.
-        </p>
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Candidate Dashboard & Analytics</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-          <DashboardCard title="Total Candidates" value={totalCandidates} icon="👥" />
-          <DashboardCard title="Average AI Score" value={`${avgScore}%`} icon="📈" />
-          <DashboardCard title="Top Skill" value={sortedSkills[0] ? sortedSkills[0][0] : 'N/A'} icon="🌟" />
+          <DashboardCard
+            icon="👥"
+            title="Total Candidates"
+            value={totalCandidates}
+          />
+          <DashboardCard
+            icon="📈"
+            title="Average AI Score"
+            value={`${avgScore}%`}
+          />
+          <DashboardCard
+            icon="🌟"
+            title="High Potential"
+            value={highPotentialCandidates}
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-300">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Candidate Status Distribution</h3>
-            {Object.keys(statusCounts).length > 0 ? (
-              <ul className="space-y-3">
-                {Object.entries(statusCounts).map(([status, count]) => (
-                  <li key={status} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                    <span className="text-gray-700 font-medium">{status}</span>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-600">No data to display. Add candidates to see status distribution.</p>
-            )}
-          </div>
-
-          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-300">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Most Frequent Skills</h3>
-            {sortedSkills.length > 0 ? (
-              <ul className="space-y-3">
-                {sortedSkills.map(([skill, count]) => (
-                  <li key={skill} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                    <span className="text-gray-700 font-medium">{skill}</span>
-                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-semibold">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-600">No data to display. Add candidates with skills to see insights.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-10">
-          <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">All Candidates</h3>
-          {candidates.length === 0 ? (
-            <p className="text-center text-gray-600 text-lg">No candidates to display. Add candidates via the screening page.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-100">
-              <table className="min-w-full bg-white">
-                <thead className="bg-gray-100 border-b border-gray-200">
-                  <tr>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tl-xl">Name</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
-                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Candidate List</h3>
+        {candidates.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">No candidates to display. Add candidates in Screening!</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-100">
+            <table className="min-w-full bg-white">
+              <thead className="bg-gray-100 border-b border-gray-200">
+                <tr>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tl-xl">Name</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map((candidate, index) => (
+                  <tr key={candidate.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition duration-150'}>
+                    <td className="py-3 px-4 text-sm text-gray-800">{candidate.name}</td>
+                    <td className="py-3 px-4 text-sm text-gray-800">{candidate.email}</td>
+                    <td className="py-3 px-4 text-sm text-gray-800">{candidate.skills}</td>
+                    <td className="py-3 px-4 text-sm text-gray-800">{candidate.experience} years</td>
+                    <td className="py-3 px-4 text-sm text-gray-800">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        candidate.aiScore > 70 ? 'bg-green-100 text-green-800' :
+                        candidate.aiScore > 40 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {candidate.aiScore}% ({candidate.fitMessage})
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {candidates.map((candidate, index) => (
-                    <tr key={candidate.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition duration-150'}>
-                      <td className="py-3 px-4 text-sm text-gray-800">{candidate.name}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800">{candidate.email}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800">{candidate.skills}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800">{candidate.experience} years</td>
-                      <td className="py-3 px-4 text-sm text-gray-800">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          candidate.aiScore > 70 ? 'bg-green-100 text-green-800' :
-                          candidate.aiScore > 40 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {candidate.aiScore}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1093,484 +1055,409 @@ const CandidateDashboardPage = () => {
 
 
 const InterviewAutomationPage = () => {
-  const [chatInput, setChatInput] = useState('');
+  const { db, userId, appId } = useAppContext();
+  const [candidateName, setCandidateName] = useState('');
+  const [jobRole, setJobRole] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
-  const [sentimentScore, setSentimentScore] = useState(null);
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
+  const [interviewRunning, setInterviewRunning] = useState(false);
+  const [sentimentAnalysis, setSentimentAnalysis] = useState(null);
   const [message, setMessage] = useState('');
 
-  const handleChatSubmit = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  const chatHistoryCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/interviewChats`) : null;
 
-    const userMessage = { role: 'user', text: chatInput };
-    setChatHistory((prev) => [...prev, userMessage]);
-    setChatInput('');
-    setIsChatLoading(true);
+  useEffect(() => {
+    if (!chatHistoryCollectionRef) return;
 
-    try {
-      // Simulate LLM response
-      const prompt = `User: ${chatInput}\nAI:`;
-      const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will provide this at runtime
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
+      const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate())); // Sort by timestamp
+    }, (error) => {
+      console.error("Error fetching chat history: ", error);
+      setMessage("Failed to load chat history. Please try again.");
+    });
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    return () => unsubscribe();
+  }, [chatHistoryCollectionRef]);
 
-      const result = await response.json();
-
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        const aiResponseText = result.candidates[0].content.parts[0].text;
-        setChatHistory((prev) => [...prev, { role: 'ai', text: aiResponseText }]);
-      } else {
-        setChatHistory((prev) => [...prev, { role: 'ai', text: "I'm having trouble generating a response right now. Please try again." }]);
-        console.error("Unexpected API response structure:", result);
-      }
-
-    } catch (error) {
-      console.error("Error fetching AI response:", error);
-      setChatHistory((prev) => [...prev, { role: 'ai', text: "An error occurred while getting a response." }]);
-      setMessage("Failed to get AI response. Please try again.");
-    } finally {
-      setIsChatLoading(false);
+  const startInterview = async () => {
+    if (!candidateName.trim() || !jobRole.trim()) {
+      setMessage("Please enter candidate name and job role to start the interview.");
+      return;
     }
+    setChatHistory([]); // Clear previous chat
+    setSentimentAnalysis(null);
+    setInterviewRunning(true);
+    setMessage("Interview started!");
+
+    // Simulate AI's first question
+    const initialAiMessage = {
+      sender: 'AI',
+      text: `Hello ${candidateName}, welcome to your interview for the ${jobRole} position. Could you please start by telling me a bit about your experience?`,
+      timestamp: new Date(),
+    };
+    await addDoc(chatHistoryCollectionRef, initialAiMessage);
   };
 
-  const simulateVideoSentiment = () => {
-    // Simulate sentiment analysis from a video interview
-    const score = Math.floor(Math.random() * 101); // 0-100
-    setSentimentScore(score);
-    setMessage("Video sentiment analysis simulated!");
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!currentMessage.trim() || !interviewRunning) return;
+
+    const userMessage = {
+      sender: 'User',
+      text: currentMessage,
+      timestamp: new Date(),
+    };
+    await addDoc(chatHistoryCollectionRef, userMessage);
+    setCurrentMessage('');
+    setIsLoadingResponse(true);
+
+    // Simulate AI response and sentiment analysis
+    setTimeout(async () => {
+      const aiResponseText = `Thank you for sharing that, ${candidateName}. That's very helpful.`;
+      const aiMessage = {
+        sender: 'AI',
+        text: aiResponseText,
+        timestamp: new Date(),
+      };
+      await addDoc(chatHistoryCollectionRef, aiMessage);
+
+      // Simulate sentiment analysis
+      const sentimentScore = Math.random() * 2 - 1; // Between -1 and 1
+      const sentiment = sentimentScore > 0.5 ? 'Positive' : sentimentScore < -0.5 ? 'Negative' : 'Neutral';
+      setSentimentAnalysis({ score: sentimentScore.toFixed(2), sentiment: sentiment });
+
+      setIsLoadingResponse(false);
+    }, 1500); // Simulate network delay
+  };
+
+  const endInterview = async () => {
+    setInterviewRunning(false);
+    setMessage("Interview ended. Review the chat history and sentiment analysis.");
+    // Optionally save the full chat history or a summary to another collection
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 to-yellow-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
       {message && <MessageBox message={message} onClose={() => setMessage('')} />}
-      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-5xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Interview & Assessment Automation</h2>
-        <p className="text-center text-gray-600 mb-8">
-          Leverage AI for preliminary interviews and sentiment analysis to gain deeper candidate insights.
-        </p>
+      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Automation</h2>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* AI Chatbot for Preliminary Interviews */}
-          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-300 flex flex-col h-[500px]">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-              AI Interview Chatbot
-            </h3>
-            <div className="flex-grow overflow-y-auto border border-gray-300 rounded-lg p-4 bg-white mb-4 custom-scrollbar shadow-sm">
-              {chatHistory.length === 0 ? (
-                <p className="text-gray-500 text-center italic">Start a conversation with the AI interviewer...</p>
-              ) : (
-                chatHistory.map((msg, index) => (
-                  <div key={index} className={`mb-3 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    <span className={`inline-block p-3 rounded-xl ${
-                      msg.role === 'user' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                    }`}>
-                      {msg.text}
-                    </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
+          <div>
+            <label htmlFor="candidateNameInput" className="block text-sm font-medium text-gray-700 mb-1">Candidate Name</label>
+            <input
+              type="text"
+              id="candidateNameInput"
+              value={candidateName}
+              onChange={(e) => setCandidateName(e.target.value)}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+              placeholder="Alice Johnson"
+              disabled={interviewRunning}
+            />
+          </div>
+          <div>
+            <label htmlFor="jobRoleInput" className="block text-sm font-medium text-gray-700 mb-1">Job Role</label>
+            <input
+              type="text"
+              id="jobRoleInput"
+              value={jobRole}
+              onChange={(e) => setJobRole(e.target.value)}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+              placeholder="Software Engineer"
+              disabled={interviewRunning}
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-center space-x-4">
+            {!interviewRunning ? (
+              <button
+                onClick={startInterview}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Start Interview
+              </button>
+            ) : (
+              <button
+                onClick={endInterview}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                End Interview
+              </button>
+            )}
+          </div>
+        </div>
+
+        {interviewRunning && (
+          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-200 mb-8">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Chat Transcripts</h3>
+            <div className="h-80 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-white mb-4 custom-scrollbar">
+              {chatHistory.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`mb-3 p-3 rounded-lg max-w-[80%] ${
+                    msg.sender === 'User'
+                      ? 'bg-blue-100 text-blue-800 ml-auto rounded-br-none'
+                      : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                  }`}
+                >
+                  <p className="font-semibold">{msg.sender}:</p>
+                  <p>{msg.text}</p>
+                  <span className="block text-right text-xs text-gray-500 mt-1">
+                    {new Date(msg.timestamp.seconds * 1000).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+              {isLoadingResponse && (
+                <div className="mb-3 p-3 rounded-lg max-w-[80%] bg-gray-200 text-gray-800 rounded-bl-none">
+                  <p className="font-semibold">AI:</p>
+                  <div className="flex items-center">
+                    <span className="animate-pulse">Typing...</span>
+                    <svg className="animate-bounce h-4 w-4 text-gray-500 ml-2" viewBox="0 0 24 24">
+                      <circle fill="currentColor" cx="4" cy="12" r="3" />
+                      <circle fill="currentColor" cx="12" cy="12" r="3" />
+                      <circle fill="currentColor" cx="20" cy="12" r="3" />
+                    </svg>
                   </div>
-                ))
-              )}
-              {isChatLoading && (
-                <div className="text-center text-gray-500">
-                  <svg className="animate-spin h-5 w-5 text-gray-500 inline-block mr-2" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  AI is typing...
                 </div>
               )}
             </div>
-            <form onSubmit={handleChatSubmit} className="flex">
+            <form onSubmit={sendMessage} className="flex space-x-3">
               <input
                 type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-grow p-3 border border-gray-300 rounded-l-lg focus:ring-orange-500 focus:border-orange-500 transition duration-200"
-                placeholder="Ask the AI a question..."
-                disabled={isChatLoading}
+                value={currentMessage}
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                className="flex-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500"
+                placeholder="Type your message here..."
+                disabled={isLoadingResponse}
               />
               <button
                 type="submit"
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-5 rounded-r-lg transition duration-300 shadow-md"
-                disabled={isChatLoading}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+                disabled={isLoadingResponse}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
               </button>
             </form>
           </div>
+        )}
 
-          {/* Video Interview Tools with Sentiment Analysis */}
-          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-300 flex flex-col items-center justify-center">
+        {sentimentAnalysis && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-inner">
             <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-yellow-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
-              Video Interview Sentiment
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6zm0-8h2V7h-2v2z"></path></svg>
+              Sentiment Analysis
             </h3>
-            <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center text-gray-500 mb-6 border border-gray-300 shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m3-2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path><line x1="12" y1="12" x2="12" y2="12"></line></svg>
-            </div>
-            <button
-              onClick={simulateVideoSentiment}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M9 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M12 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path><path d="M18 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path></svg>
-              Simulate Sentiment Analysis
-            </button>
-            {sentimentScore !== null && (
-              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 font-medium text-center w-full shadow-md">
-                Simulated Sentiment Score: <span className="font-bold text-xl">{sentimentScore}%</span>
-                <p className="text-sm mt-1">
-                  {sentimentScore > 75 ? 'Very Positive' :
-                   sentimentScore > 50 ? 'Positive' :
-                   sentimentScore > 25 ? 'Neutral/Slightly Negative' : 'Negative'}
-                </p>
-              </div>
-            )}
+            <p className="text-lg text-gray-800">
+              Overall Interview Sentiment: <span className={`font-bold ${
+                sentimentAnalysis.sentiment === 'Positive' ? 'text-green-600' :
+                sentimentAnalysis.sentiment === 'Negative' ? 'text-red-600' :
+                'text-gray-600'
+              }`}>{sentimentAnalysis.sentiment}</span> (Score: {sentimentAnalysis.score})
+            </p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 };
 
-// New Job Seeker Page Component
-const JobSeekerPage = () => {
-  const { db, userId, appId } = useAppContext();
-  const [jobSeekerProfile, setJobSeekerProfile] = useState({
-    fullName: '',
-    desiredRole: '',
-    skills: '',
-    experienceYears: '',
-    resumeLink: '',
-    portfolioLink: '',
-  });
-  const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasProfile, setHasProfile] = useState(false);
 
-  const jobSeekerProfileDocRef = db ? doc(db, `artifacts/${appId}/users/${userId}/jobSeekerProfile`, 'myProfile') : null;
+const JobSeekerDashboardPage = () => {
+  const { db, userId, appId } = useAppContext();
+  const [applications, setApplications] = useState([]);
+  const [message, setMessage] = useState('');
+
+  const applicationsCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/applications`) : null;
 
   useEffect(() => {
-    if (!jobSeekerProfileDocRef) return;
+    if (!applicationsCollectionRef) return;
 
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      setMessage(''); // Clear previous messages
-      try {
-        const docSnap = await getDoc(jobSeekerProfileDocRef);
-        if (docSnap.exists()) {
-          setJobSeekerProfile(docSnap.data());
-          setHasProfile(true);
-        } else {
-          setHasProfile(false);
-          // Differentiate: If doc doesn't exist, it's not an error, just no profile yet.
-          setMessage("Your profile is empty. Please fill it out and save.");
-        }
-      } catch (error) {
-        console.error("Error fetching job seeker profile:", error); // Log the full error
-        setMessage(`Failed to load your profile: ${error.message}. Please check console for details.`);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [jobSeekerProfileDocRef]);
+    const unsubscribe = onSnapshot(applicationsCollectionRef, (snapshot) => {
+      const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setApplications(appsData);
+    }, (error) => {
+      console.error("Error fetching applications: ", error);
+      setMessage("Failed to load applications. Please try again.");
+    });
 
-  const handleProfileChange = (e) => {
-    const { id, value } = e.target;
-    setJobSeekerProfile((prev) => ({ ...prev, [id]: value }));
-  };
+    return () => unsubscribe();
+  }, [applicationsCollectionRef]);
 
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    if (!jobSeekerProfile.fullName || !jobSeekerProfile.desiredRole || !jobSeekerProfile.skills) {
-      setMessage("Please fill in required profile fields (Full Name, Desired Role, Skills).");
-      return;
-    }
-
-    setIsLoading(true);
+  const handleApply = async (jobTitle) => {
     try {
-      await setDoc(jobSeekerProfileDocRef, jobSeekerProfile, { merge: true });
-      setMessage("Profile saved successfully!");
-      setHasProfile(true);
+      const newApplication = {
+        jobTitle,
+        status: 'Pending',
+        applicationDate: new Date(),
+      };
+      await addDoc(applicationsCollectionRef, newApplication);
+      setMessage(`Successfully applied for ${jobTitle}!`);
     } catch (error) {
-      console.error("Error saving job seeker profile:", error);
-      setMessage("Failed to save profile. Please try again.");
-    } finally {
-      setIsLoading(false);
+      console.error("Error applying for job: ", error);
+      setMessage("Failed to apply for job. Please try again.");
     }
   };
 
-  // Mock Job Listings
-  const mockJobListings = [
-    {
-      id: 'job1',
-      title: 'Senior Frontend Developer',
-      company: 'Tech Solutions Inc.',
-      location: 'Remote',
-      description: 'Seeking an experienced React developer for our dynamic team. Must have 5+ years experience with modern JavaScript frameworks.',
-      skills: ['React', 'JavaScript', 'TypeScript', 'Node.js'],
-    },
-    {
-      id: 'job2',
-      title: 'AI/ML Engineer',
-      company: 'Innovate AI Labs',
-      location: 'New York, NY',
-      description: 'Join our cutting-edge AI research team. Strong background in Python, machine learning, and deep learning frameworks required.',
-      skills: ['Python', 'Machine Learning', 'TensorFlow', 'PyTorch', 'Data Science'],
-    },
-    {
-      id: 'job3',
-      title: 'Product Manager',
-      company: 'Global Innovations',
-      location: 'San Francisco, CA',
-      description: 'We are looking for a visionary Product Manager to lead our new product line. Experience with agile methodologies and market analysis is a plus.',
-      skills: ['Product Management', 'Agile', 'Market Research', 'UX/UI'],
-    },
+  const jobListings = [
+    { id: 1, title: "Frontend Developer", company: "Tech Solutions", description: "Develop and maintain user interfaces.", status: 'Open' },
+    { id: 2, title: "Backend Engineer", company: "Data Innovators", description: "Design and implement server-side logic.", status: 'Open' },
+    { id: 3, title: "UX Designer", company: "Creative Minds", description: "Create intuitive and appealing user experiences.", status: 'Open' },
   ];
 
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 md:p-8">
       {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-6xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Job Seeker Dashboard</h2>
-        <p className="text-center text-gray-600 mb-8">
-          Manage your profile and explore job opportunities tailored for you.
-        </p>
 
-        {/* Profile Management Section */}
-        <div className="mb-10 p-6 border border-blue-300 rounded-2xl bg-blue-50 shadow-inner">
-          <h3 className="text-2xl font-semibold text-gray-700 mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            Your Profile
-          </h3>
-          <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              <input type="text" id="fullName" value={jobSeekerProfile.fullName} onChange={handleProfileChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200" placeholder="Jane Doe" required />
-            </div>
-            <div>
-              <label htmlFor="desiredRole" className="block text-sm font-medium text-gray-700 mb-1">Desired Role</label>
-              <input type="text" id="desiredRole" value={jobSeekerProfile.desiredRole} onChange={handleProfileChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200" placeholder="Software Engineer" required />
-            </div>
-            <div className="md:col-span-2">
-              <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (comma-separated)</label>
-              <textarea id="skills" value={jobSeekerProfile.skills} onChange={handleProfileChange} rows="2"
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-y transition duration-200" placeholder="JavaScript, React, Node.js" required></textarea>
-            </div>
-            <div>
-              <label htmlFor="experienceYears" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
-              <input type="number" id="experienceYears" value={jobSeekerProfile.experienceYears} onChange={handleProfileChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200" placeholder="3" />
-            </div>
-            <div>
-              <label htmlFor="resumeLink" className="block text-sm font-medium text-gray-700 mb-1">Resume Link (e.g., Google Drive)</label>
-              <input type="url" id="resumeLink" value={jobSeekerProfile.resumeLink} onChange={handleProfileChange}
-                className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200" placeholder="https://drive.google.com/my-resume" />
-            </div>
-            <div className="md:col-span-2 flex justify-center">
-              <button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  hasProfile ? 'Update Profile' : 'Save Profile'
-                )}
-              </button>
-            </div>
-          </form>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+          <DashboardCard icon="📄" title="Total Applications" value={applications.length} />
+          <DashboardCard icon="⏳" title="Pending Applications" value={applications.filter(app => app.status === 'Pending').length} />
+          <DashboardCard icon="✅" title="Approved Applications" value={applications.filter(app => app.status === 'Approved').length} />
         </div>
 
-        {/* Job Listings Section */}
-        <div className="p-6 border border-purple-300 rounded-2xl bg-purple-50 shadow-inner">
-          <h3 className="text-2xl font-semibold text-gray-700 mb-4 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><path d="M17 2v4"></path><path d="M7 2v4"></path><path d="M2 12h20"></path><path d="M9 16h6"></path></svg>
-            Job Listings
-          </h3>
-          {mockJobListings.length === 0 ? (
-            <p className="text-center text-gray-600 text-lg">No job listings available at the moment.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {mockJobListings.map((job) => (
-                <div key={job.id} className="bg-white p-5 rounded-lg shadow-md border border-gray-200 transform transition duration-300 hover:scale-103 hover:shadow-lg">
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Available Job Listings</h3>
+        {jobListings.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">No job listings available at the moment.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {jobListings.map(job => (
+              <div key={job.id} className="bg-gray-50 p-6 rounded-2xl shadow-md border border-gray-200 flex flex-col justify-between">
+                <div>
                   <h4 className="text-xl font-semibold text-gray-800 mb-2">{job.title}</h4>
-                  <p className="text-gray-600 mb-1"><span className="font-medium">Company:</span> {job.company}</p>
-                  <p className="text-gray-600 mb-1"><span className="font-medium">Location:</span> {job.location}</p>
-                  <p className="text-gray-700 text-sm mt-3">{job.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {job.skills.map((skill, idx) => (
-                      <span key={idx} className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                  <button className="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-full text-sm transition duration-300 shadow-md">
-                    Apply Now
-                  </button>
+                  <p className="text-gray-600 text-sm mb-3">{job.company}</p>
+                  <p className="text-gray-700 text-base mb-4">{job.description}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <button
+                  onClick={() => handleApply(job.title)}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center mt-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="10" y2="9"></line></svg>
+                  Apply Now
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 mt-10 text-center">Your Applications</h3>
+        {applications.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">You haven't applied for any jobs yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-100">
+            <table className="min-w-full bg-white">
+              <thead className="bg-gray-100 border-b border-gray-200">
+                <tr>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tl-xl">Job Title</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">Application Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((app, index) => (
+                  <tr key={app.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition duration-150'}>
+                    <td className="py-3 px-4 text-sm text-gray-800">{app.jobTitle}</td>
+                    <td className="py-3 px-4 text-sm text-gray-800">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        app.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                        app.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {app.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-800">{new Date(app.applicationDate.seconds * 1000).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 
-// --- Main App Component ---
 const App = () => {
-  const [currentPage, setCurrentPage] = useState('login');
-  const [firebaseApp, setFirebaseApp] = useState(null);
-  const [db, setDb] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [userRole, setUserRole] = useState(null); // New state for user role
-  const [loadingFirebase, setLoadingFirebase] = useState(true);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState('login'); // Initial page state changed to 'login'
   const [message, setMessage] = useState('');
+  const [userRole, setUserRole] = useState(null); // 'recruiter' or 'jobSeeker'
 
-  // Define appId and initialAuthToken directly for local development
-  // MANDATORY: Use __app_id and __initial_auth_token if available (Canvas environment)
-  // Access these global variables directly
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'my-recruitment-app-local';
-  const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+  // Firebase Init
+  const firebaseConfig = __firebase_config;
+  const appId = __app_id;
 
-  // IMPORTANT: You MUST replace these placeholder values with your actual Firebase project configuration for external deployments (e.g., Vercel, Netlify).
-  // You can find this in your Firebase project settings -> Project settings -> General -> Your apps -> Web app -> Firebase SDK snippet -> Config.
-  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-   apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
-  authDomain: "hackathon-99817.firebaseapp.com",
-  projectId: "hackathon-99817",
-  storageBucket: "hackathon-99817.firebasestorage.app",
-  messagingSenderId: "196635937156",
-  appId: "1:196635937156:web:5289a52b9787a8493e35d1",
-  measurementId: "G-3TLVSX088F"
-  };
-useEffect(() => {
-  const initializeFirebase = async () => {
-    try {
-      const app = initializeApp(firebaseConfig);
-      const firestore = getFirestore(app);
-      const firebaseAuth = getAuth(app);
+  const app = React.useMemo(() => initializeApp(firebaseConfig), [firebaseConfig]);
+  const auth = React.useMemo(() => getAuth(app), [app]);
+  const db = React.useMemo(() => getFirestore(app), [app]);
 
-      setFirebaseApp(app);
-      setDb(firestore);
-      setAuth(firebaseAuth);
-
-      // Listen for auth state changes
-      const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-        if (user) {
-          setUserId(user.uid);
-          // Fetch user role
-          const userRoleDocRef = doc(firestore, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role');
-          const docSnap = await getDoc(userRoleDocRef);
-          if (docSnap.exists()) {
-            setUserRole(docSnap.data().role);
-          } else {
-            setUserRole('recruiter'); // Default role
-          }
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        // Fetch user role from Firestore
+        const roleDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'role');
+        const roleDocSnap = await getDoc(roleDocRef);
+        if (roleDocSnap.exists()) {
+          setUserRole(roleDocSnap.data().role);
+          setCurrentPage(roleDocSnap.data().role === 'recruiter' ? 'home' : 'jobSeeker');
         } else {
-          // Try anonymous auth only if no initial token
-          if (!initialAuthToken) {
-            try {
-              await signInAnonymously(firebaseAuth);
-            } catch (anonError) {
-              console.error("Anonymous auth failed:", anonError);
-              // Fallback to local UUID if auth fails
-              setUserId(crypto.randomUUID());
-              setUserRole('recruiter');
-            }
-          }
+          // Default to 'recruiter' if no role is found (first-time login, etc.)
+          setUserRole('recruiter');
+          setCurrentPage('home');
         }
-        setLoadingFirebase(false);
-      });
-
-      // If we have an initial token, try to sign in with it
-      if (initialAuthToken) {
-        try {
-          const userCredential = await signInWithCustomToken(firebaseAuth, initialAuthToken);
-          setUserId(userCredential.user.uid);
-        } catch (tokenError) {
-          console.error("Custom token auth failed:", tokenError);
-          setMessage("Authentication failed. Please try logging in manually.");
-        }
+      } else {
+        setUser(null);
+        setUserRole(null);
+        setCurrentPage('login'); // Redirect to login if no user
       }
+      setIsLoading(false);
+    });
 
-      return unsubscribe;
-    } catch (error) {
-      console.error("Firebase initialization error:", error);
-      setMessage("Failed to initialize Firebase. Some features may not work.");
-      setLoadingFirebase(false);
-      setUserId(crypto.randomUUID()); // Fallback ID
-      setUserRole('recruiter'); // Default role
-    }
-  };
-
-  if (!firebaseApp) {
-    initializeFirebase();
-  }
-}, [firebaseApp, initialAuthToken, firebaseConfig, appId]);
-
- 
-
-       
+    return () => unsubscribe();
+  }, [auth, db, appId]);
 
   const navigate = (page) => {
     setCurrentPage(page);
   };
 
-  const handleLogout = async () => {
-    if (auth) {
-      try {
-        await signOut(auth);
-        setUserId(null); // Clear userId on logout
-        setUserRole(null); // Clear userRole on logout
-        setCurrentPage('login'); // Navigate to login page after logout
-        setMessage('Successfully logged out.');
-      } catch (error) {
-        console.error("Logout error:", error);
-        setMessage(`Logout failed: ${error.message}`);
-      }
+  const handleLoginSuccess = (role) => {
+    setUserRole(role);
+    setMessage('Logged in successfully!');
+    // Redirect based on role after successful login
+    if (role === 'recruiter') {
+      navigate('home');
+    } else if (role === 'jobSeeker') {
+      navigate('jobSeeker');
     }
   };
 
-  if (loadingFirebase) {
-    return <LoadingSpinner />;
-  }
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setMessage('Logged out successfully!');
+      navigate('login'); // Redirect to login page after logout
+    } catch (error) {
+      console.error("Logout error:", error);
+      setMessage(`Logout failed: ${error.message}`);
+    }
+  };
 
   const renderPage = () => {
-    // If not authenticated, show login page
-    if (!userId || userRole === null) {
-      return <LoginPage 
-        auth={auth} 
-        onLoginSuccess={(role) => {
-          setUserId(auth.currentUser?.uid);
-          setUserRole(role);
-          // Redirect based on role after login
-          navigate(role === 'recruiter' ? 'home' : 'jobSeeker');
-        }} 
-        setMessage={setMessage} 
-      />;
+    if (isLoading) {
+      return <LoadingSpinner />;
     }
 
-    // Show appropriate page based on currentPage state for authenticated users
+    if (!user) {
+      return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
+    }
+
     switch (currentPage) {
       case 'home':
         return <HomePage navigate={navigate} />;
@@ -1585,56 +1472,25 @@ useEffect(() => {
       case 'interviewAutomation':
         return <InterviewAutomationPage />;
       case 'jobSeeker':
-        return <JobSeekerPage />;
+        return <JobSeekerDashboardPage />;
+      case 'login': // Explicitly handle login page when logged in (shouldn't happen often)
+        return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
       default:
-        return userRole === 'recruiter' ? <HomePage navigate={navigate} /> : <JobSeekerPage />;
+        return <HomePage navigate={navigate} />;
     }
-};
+  };
+
   return (
-    <AppContext.Provider value={{ firebaseApp, db, auth, userId, appId }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        body {
-          font-family: 'Inter', sans-serif;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out forwards;
-        }
-      `}</style>
-      <div className="min-h-screen bg-gray-50">
+    <AppContext.Provider value={{ app, auth, db, userId: user?.uid, appId }}>
+      <div className="min-h-screen bg-gray-100 font-sans antialiased">
         {message && <MessageBox message={message} onClose={() => setMessage('')} />}
-        {/* Navigation Bar - Only show if authenticated */}
-        {userId && userRole && ( // Only show nav if userId and userRole are determined
-          <nav className="bg-white shadow-lg p-4 sticky top-0 z-40">
-            <div className="container mx-auto flex flex-wrap justify-between items-center">
-              <div className="flex items-center space-x-2 mb-2 md:mb-0">
-                <span className="text-2xl font-bold text-blue-700">RecruitFlow AI</span>
-                {userId && (
-                  <span className="text-sm text-gray-500 hidden sm:block">User ID: {userId}</span>
-                )}
-                 {userRole && (
-                  <span className="text-sm text-gray-500 hidden sm:block capitalize">Role: {userRole}</span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 md:gap-4 justify-center md:justify-end">
+
+        {/* Navigation */}
+        {user && ( // Only show navigation if user is logged in
+          <nav className="bg-white shadow-lg py-4 px-6">
+            <div className="container mx-auto flex justify-between items-center">
+              <div className="text-2xl font-bold text-blue-700">RecruitFlow AI</div>
+              <div className="flex space-x-4">
                 {userRole === 'recruiter' && (
                   <>
                     <NavItem onClick={() => navigate('home')} isActive={currentPage === 'home'}>Home</NavItem>
