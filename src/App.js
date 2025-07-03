@@ -1319,7 +1319,7 @@ const JobSeekerDashboardPage = () => {
           <DashboardCard icon="✅" title="Approved Applications" value={applications.filter(app => app.status === 'Approved').length} />
         </div>
 
-        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 text-center">Available Job Listings</h3>
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 mt-10 text-center">Available Job Listings</h3>
         {jobListings.length === 0 ? (
           <p className="text-center text-gray-600 text-lg">No job listings available at the moment.</p>
         ) : (
