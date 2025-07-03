@@ -1450,7 +1450,7 @@ const App = () => {
 
   // Firebase Init: Using the provided configuration directly
   const firebaseConfig = {
-    apiKey: "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q", // Updated API Key
+    apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM", // Updated API Key
     authDomain: "hackathon-99817.firebaseapp.com",
     projectId: "hackathon-99817",
     storageBucket: "hackathon-99817.firebasestorage.app",
