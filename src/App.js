@@ -1672,15 +1672,12 @@ const InterviewAutomationPage = () => {
     </div>
   );
 };
-
-           
-
-
+// === JobSeekerProfilePage Component ===
 const JobSeekerProfilePage = () => {
-  const { db, userId, appId, auth } = useAppContext();
+  const { auth, userId, appId } = useAppContext();
   const [profile, setProfile] = useState({
     name: '',
-    email: auth.currentUser?.email || '', // Initialize with auth email
+    email: auth.currentUser?.email || '',
     skills: '',
     experience: '',
     desiredJobRole: '',
@@ -1689,24 +1686,16 @@ const JobSeekerProfilePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState('');
 
-  const userProfileDocRef = db && userId ? doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile') : null;
-
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!userProfileDocRef) {
-        setIsLoading(false);
-        return;
-      }
-      
       setIsLoading(true);
       try {
-        const docSnap = await getDoc(userProfileDocRef);
+        const docSnap = await mockGetDoc();
         if (docSnap.exists()) {
           const profileData = docSnap.data();
           setProfile(prev => ({
             ...prev,
             ...profileData,
-            // Don't overwrite email from auth
             email: auth.currentUser?.email || prev.email
           }));
         }
@@ -1718,22 +1707,14 @@ const JobSeekerProfilePage = () => {
         setIsLoading(false);
       }
     };
-    
     fetchProfile();
-  }, [userProfileDocRef, auth.currentUser?.email]);
+  }, [auth.currentUser?.email]);
 
-  const handleProfileSave = async (e) => {
-    e.preventDefault();
-    if (!userProfileDocRef) {
-      setMessage("Database not available. Please try again later.");
-      return;
-    }
-
+  const handleProfileSave = async () => {
     setIsLoading(true);
     try {
-      // Don't save email as it's managed by auth
       const { email, ...profileToSave } = profile;
-      await setDoc(userProfileDocRef, profileToSave);
+      await mockSetDoc();
       setMessage("Profile saved successfully!");
     } catch (error) {
       console.error("Error saving profile: ", error);
@@ -1748,9 +1729,7 @@ const JobSeekerProfilePage = () => {
     setProfile(prev => ({ ...prev, [id]: value }));
   };
 
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
@@ -1760,7 +1739,7 @@ const JobSeekerProfilePage = () => {
         <p className="text-center text-gray-600 mb-8">
           Create or update your profile to get personalized job recommendations and prepare for interviews.
         </p>
-        <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
           <div className="md:col-span-2">
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
             <input
@@ -1770,7 +1749,6 @@ const JobSeekerProfilePage = () => {
               onChange={handleChange}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="Your Full Name"
-              required
             />
           </div>
           <div className="md:col-span-2">
@@ -1832,7 +1810,7 @@ const JobSeekerProfilePage = () => {
           </div>
           <div className="md:col-span-2 flex justify-center">
             <button
-              type="submit"
+              onClick={handleProfileSave}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
               disabled={isLoading}
             >
@@ -1853,11 +1831,17 @@ const JobSeekerProfilePage = () => {
               )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
 };
+
+           
+
+
+
+
   const handleApply = async (jobTitle) => {
     try {
       const newApplication = {
