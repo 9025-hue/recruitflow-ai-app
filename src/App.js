@@ -417,7 +417,7 @@ const CandidateScreeningPage = () => {
   const candidatesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/candidates`) : null;
 
   useEffect(() => {
-    if (!candidatesCollectionRef) return;
+    if (!candidatesCollectionRef || !userId) return; // Ensure userId is available
 
     // Listen for real-time updates
     const unsubscribe = onSnapshot(candidatesCollectionRef, (snapshot) => {
@@ -430,7 +430,7 @@ const CandidateScreeningPage = () => {
 
     // Cleanup listener on unmount
     return () => unsubscribe();
-  }, [candidatesCollectionRef]);
+  }, [candidatesCollectionRef, userId]); // Add userId to dependencies
 
   const handleAddCandidate = async (e) => {
     e.preventDefault();
@@ -796,7 +796,7 @@ const InterviewSchedulingPage = () => {
   const schedulesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/schedules`) : null;
 
   useEffect(() => {
-    if (!schedulesCollectionRef) return;
+    if (!schedulesCollectionRef || !userId) return; // Ensure userId is available
 
     const unsubscribe = onSnapshot(schedulesCollectionRef, (snapshot) => {
       const schedulesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -807,7 +807,7 @@ const InterviewSchedulingPage = () => {
     });
 
     return () => unsubscribe();
-  }, [schedulesCollectionRef]);
+  }, [schedulesCollectionRef, userId]); // Add userId to dependencies
 
   const handleScheduleInterview = async (e) => {
     e.preventDefault();
@@ -986,7 +986,7 @@ const CandidateDashboardPage = () => {
   const candidatesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/candidates`) : null;
 
   useEffect(() => {
-    if (!candidatesCollectionRef) return;
+    if (!candidatesCollectionRef || !userId) return; // Ensure userId is available
 
     const unsubscribe = onSnapshot(candidatesCollectionRef, (snapshot) => {
       const candidatesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -997,7 +997,7 @@ const CandidateDashboardPage = () => {
     });
 
     return () => unsubscribe();
-  }, [candidatesCollectionRef]);
+  }, [candidatesCollectionRef, userId]); // Add userId to dependencies
 
   // Calculate statistics
   const totalCandidates = candidates.length;
@@ -1043,7 +1043,8 @@ const CandidateDashboardPage = () => {
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
-                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">AI Score</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1062,6 +1063,15 @@ const CandidateDashboardPage = () => {
                         {candidate.aiScore}% ({candidate.fitMessage})
                       </span>
                     </td>
+                    <td className="py-3 px-4 text-sm text-gray-800">
+                      <button
+                        onClick={() => handleDeleteCandidate(candidate.id)}
+                        className="text-red-500 hover:text-red-700 font-medium transition duration-200 flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1072,6 +1082,475 @@ const CandidateDashboardPage = () => {
     </div>
   );
 };
+
+// New Job Seeker Interview Preparation Page
+const JobSeekerInterviewPrepPage = () => {
+  const { db, userId, appId } = useAppContext();
+  const [candidateName, setCandidateName] = useState('');
+  const [jobRole, setJobRole] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
+  const [interviewRunning, setInterviewRunning] = useState(false);
+  const [sentimentAnalysis, setSentimentAnalysis] = useState(null);
+  const [message, setMessage] = useState('');
+
+  // Use a different collection for job seeker interview prep chats
+  const chatHistoryCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/jobSeekerInterviewChats`) : null;
+
+  // Load user profile to pre-fill candidate name
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (db && userId) { // Ensure db and userId are available
+        const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
+        try {
+          const docSnap = await getDoc(userProfileRef);
+          if (docSnap.exists()) {
+            const profileData = docSnap.data();
+            setCandidateName(profileData.name || '');
+          }
+        } catch (error) {
+          console.error("Error fetching user profile for interview prep:", error);
+          // Do not set a message here as it might interfere with other messages
+        }
+      }
+    };
+    fetchUserProfile();
+  }, [db, userId, appId]); // Add db and userId to dependencies
+
+  useEffect(() => {
+    if (!chatHistoryCollectionRef || !userId) return; // Ensure userId is available
+
+    const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
+      const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()));
+    }, (error) => {
+      console.error("Error fetching chat history: ", error);
+      setMessage("Failed to load chat history. Please try again.");
+    });
+
+    return () => unsubscribe();
+  }, [chatHistoryCollectionRef, userId]); // Add userId to dependencies
+
+  const startInterview = async () => {
+    if (!candidateName.trim() || !jobRole.trim()) {
+      setMessage("Please enter your name and the job role you are preparing for to start the interview.");
+      return;
+    }
+    setChatHistory([]);
+    setSentimentAnalysis(null);
+    setInterviewRunning(true);
+    setMessage("Interview preparation started!");
+
+    // Initial AI greeting for job seeker
+    const initialAiMessage = {
+      sender: 'AI',
+      text: `Hello ${candidateName}, welcome to your interview preparation for the ${jobRole} position. I'm here to help you practice. Let's start with your experience.`,
+      timestamp: new Date(),
+    };
+    await addDoc(chatHistoryCollectionRef, initialAiMessage);
+  };
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!currentMessage.trim() || !interviewRunning) return;
+
+    // Add user message to chat history
+    const userMessage = {
+      sender: 'User',
+      text: currentMessage,
+      timestamp: new Date(),
+    };
+    await addDoc(chatHistoryCollectionRef, userMessage);
+    setCurrentMessage('');
+    setIsLoadingResponse(true);
+
+    try {
+      // Format chat history for Gemini API
+      const formattedHistory = chatHistory.map(msg => ({
+        role: msg.sender === 'User' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      }));
+      
+      // Add current user message to history
+      formattedHistory.push({
+        role: 'user',
+        parts: [{ text: userMessage.text }]
+      });
+
+      // Prepare the request payload
+      const payload = {
+        contents: formattedHistory,
+        generationConfig: {
+          temperature: 0.9,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 2048,
+          stopSequences: []
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
+      };
+
+      const apiKey = ""; // Canvas will inject this
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
+      if (result.candidates && result.candidates[0]?.content?.parts) {
+        aiResponseText = result.candidates[0].content.parts[0].text;
+      }
+
+      const aiMessage = {
+        sender: 'AI',
+        text: aiResponseText,
+        timestamp: new Date(),
+      };
+      await addDoc(chatHistoryCollectionRef, aiMessage);
+
+      // Simulate sentiment analysis
+      const sentimentScore = Math.random() * 2 - 1; // Between -1 and 1
+      const sentiment = sentimentScore > 0.5 ? 'Positive' : sentimentScore < -0.5 ? 'Negative' : 'Neutral';
+      setSentimentAnalysis({ score: sentimentScore.toFixed(2), sentiment: sentiment });
+
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      setMessage("Failed to get AI response. Please try again.");
+      
+      const errorMessage = {
+        sender: 'AI',
+        text: "I'm having trouble responding right now. Could you please rephrase your question?",
+        timestamp: new Date(),
+      };
+      await addDoc(chatHistoryCollectionRef, errorMessage);
+    } finally {
+      setIsLoadingResponse(false);
+    }
+  };
+
+  const endInterview = () => {
+    setInterviewRunning(false);
+    setMessage("Interview preparation ended. Review your chat history and sentiment analysis.");
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
+      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
+      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Preparation</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
+          <div>
+            <label htmlFor="candidateNameInput" className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+            <input
+              type="text"
+              id="candidateNameInput"
+              value={candidateName}
+              onChange={(e) => setCandidateName(e.target.value)}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+              placeholder="Your Name"
+              disabled={interviewRunning}
+            />
+          </div>
+          <div>
+            <label htmlFor="jobRoleInput" className="block text-sm font-medium text-gray-700 mb-1">Job Role to Prepare For</label>
+            <input
+              type="text"
+              id="jobRoleInput"
+              value={jobRole}
+              onChange={(e) => setJobRole(e.target.value)}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+              placeholder="e.g., Software Engineer"
+              disabled={interviewRunning}
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-center space-x-4">
+            {!interviewRunning ? (
+              <button
+                onClick={startInterview}
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Start Preparation
+              </button>
+            ) : (
+              <button
+                onClick={endInterview}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                End Preparation
+              </button>
+            )}
+          </div>
+        </div>
+
+        {interviewRunning && (
+          <div className="bg-gray-50 p-6 rounded-2xl shadow-inner border border-gray-200 mb-8">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4">Chat Transcripts</h3>
+            <div className="h-80 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-white mb-4 custom-scrollbar">
+              {chatHistory.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`mb-3 p-3 rounded-lg max-w-[80%] ${
+                    msg.sender === 'User'
+                      ? 'bg-blue-100 text-blue-800 ml-auto rounded-br-none'
+                      : 'bg-gray-200 text-gray-800 rounded-bl-none'
+                  }`}
+                >
+                  <p className="font-semibold">{msg.sender}:</p>
+                  <p>{msg.text}</p>
+                  <span className="block text-right text-xs text-gray-500 mt-1">
+                    {msg.timestamp?.toDate ? 
+                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() : 
+                      new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+              {isLoadingResponse && (
+                <div className="mb-3 p-3 rounded-lg max-w-[80%] bg-gray-200 text-gray-800 rounded-bl-none">
+                  <p className="font-semibold">AI:</p>
+                  <div className="flex items-center">
+                    <span className="animate-pulse">Typing...</span>
+                    <svg className="animate-bounce h-4 w-4 text-gray-500 ml-2" viewBox="0 0 24 24">
+                      <circle fill="currentColor" cx="4" cy="12" r="3" />
+                      <circle fill="currentColor" cx="12" cy="12" r="3" />
+                      <circle fill="currentColor" cx="20" cy="12" r="3" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+            </div>
+            <form onSubmit={sendMessage} className="flex space-x-3">
+              <input
+                type="text"
+                value={currentMessage}
+                onChange={(e) => setCurrentMessage(e.target.value)}
+                className="flex-1 p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500"
+                placeholder="Type your message here..."
+                disabled={isLoadingResponse}
+              />
+              <button
+                type="submit"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+                disabled={isLoadingResponse}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {sentimentAnalysis && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 shadow-inner">
+            <h3 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h2v-6h-2v6zm0-8h2V7h-2v2z"></path></svg>
+              Sentiment Analysis
+            </h3>
+            <p className="text-lg text-gray-800">
+              Overall Interview Sentiment: <span className={`font-bold ${
+                sentimentAnalysis.sentiment === 'Positive' ? 'text-green-600' :
+                sentimentAnalysis.sentiment === 'Negative' ? 'text-red-600' :
+                'text-gray-600'
+              }`}>{sentimentAnalysis.sentiment}</span> (Score: {sentimentAnalysis.score})
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// New Job Seeker Profile Page
+const JobSeekerProfilePage = () => {
+  const { db, userId, appId } = useAppContext();
+  const [profile, setProfile] = useState({
+    name: '',
+    email: '',
+    skills: '',
+    experience: '',
+    desiredJobRole: '',
+    resumeUrl: '', // Simulated resume upload
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const userProfileDocRef = db && userId ? doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile') : null;
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!userProfileDocRef || !userId) return; // Ensure userId is available
+      setIsLoading(true);
+      try {
+        const docSnap = await getDoc(userProfileDocRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data());
+        } else {
+          setMessage("No profile found. Please create your profile.");
+        }
+      } catch (error) {
+        console.error("Error fetching profile: ", error);
+        setMessage("Failed to load profile. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [userProfileDocRef, userId]); // Add userId to dependencies
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    if (!userProfileDocRef) {
+      setMessage("User not logged in or profile reference not available.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await setDoc(userProfileDocRef, profile, { merge: true });
+      setMessage("Profile saved successfully!");
+    } catch (error) {
+      console.error("Error saving profile: ", error);
+      setMessage("Failed to save profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { id, value } = e.target;
+    setProfile(prev => ({ ...prev, [id]: value }));
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
+      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
+      <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
+        <p className="text-center text-gray-600 mb-8">
+          Create or update your profile to get personalized job recommendations and prepare for interviews.
+        </p>
+        <form onSubmit={handleProfileSave} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
+          <div className="md:col-span-2">
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              id="name"
+              value={profile.name}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="Your Full Name"
+              required
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
+            <input
+              type="email"
+              id="email"
+              value={profile.email || (userId ? `${userId.substring(0, 8)}...` : '')} // Display actual email if available, else truncated UID
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
+              disabled
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (comma-separated)</label>
+            <textarea
+              id="skills"
+              value={profile.skills}
+              onChange={handleChange}
+              rows="3"
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-y transition duration-200"
+              placeholder="e.g., JavaScript, React, Node.js, AWS"
+            ></textarea>
+          </div>
+          <div>
+            <label htmlFor="experience" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+            <input
+              type="number"
+              id="experience"
+              value={profile.experience}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., 5"
+            />
+          </div>
+          <div>
+            <label htmlFor="desiredJobRole" className="block text-sm font-medium text-gray-700 mb-1">Desired Job Role</label>
+            <input
+              type="text"
+              id="desiredJobRole"
+              value={profile.desiredJobRole}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., Senior Frontend Developer"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="resumeUrl" className="block text-sm font-medium text-gray-700 mb-1">Resume URL (Simulated Upload)</label>
+            <input
+              type="url"
+              id="resumeUrl"
+              value={profile.resumeUrl}
+              onChange={handleChange}
+              className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              placeholder="e.g., https://your-resume-link.com/resume.pdf"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              (In a real app, this would be a file upload. Here, we're simulating with a URL.)
+            </p>
+          </div>
+          <div className="md:col-span-2 flex justify-center">
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <svg className="animate-spin h-5 w-5 text-white mr-3" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  Save Profile
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 
 const InterviewAutomationPage = () => {
   const { db, userId, appId } = useAppContext();
@@ -1087,7 +1566,7 @@ const InterviewAutomationPage = () => {
   const chatHistoryCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/interviewChats`) : null;
 
   useEffect(() => {
-    if (!chatHistoryCollectionRef) return;
+    if (!chatHistoryCollectionRef || !userId) return; // Ensure userId is available
 
     const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
       const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1098,7 +1577,7 @@ const InterviewAutomationPage = () => {
     });
 
     return () => unsubscribe();
-  }, [chatHistoryCollectionRef]);
+  }, [chatHistoryCollectionRef, userId]); // Add userId to dependencies
 
   const startInterview = async () => {
     if (!candidateName.trim() || !jobRole.trim()) {
@@ -1178,7 +1657,7 @@ const InterviewAutomationPage = () => {
 
       // Get API key from environment (will be provided at runtime)
       const apiKey = ""; // Canvas will inject this
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -1236,7 +1715,10 @@ const InterviewAutomationPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
       {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Automation</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Automation (Recruiter View)</h2>
+        <p className="text-center text-gray-600 mb-8">
+          This section is for recruiters to conduct automated interviews. Job seekers can find their interview prep tool in their dashboard.
+        </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
           <div>
@@ -1363,17 +1845,26 @@ const InterviewAutomationPage = () => {
            
 
 
-const JobSeekerDashboardPage = () => {
+const JobSeekerDashboardPage = ({ navigate }) => {
   const { db, userId, appId } = useAppContext();
   const [applications, setApplications] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
   const [message, setMessage] = useState('');
 
   const applicationsCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/applications`) : null;
+  const userProfileDocRef = db && userId ? doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile') : null;
 
   useEffect(() => {
-    if (!applicationsCollectionRef) return;
+    // Ensure userId is available before attempting Firestore operations
+    if (!userId) {
+      console.log("JobSeekerDashboardPage: userId not available yet.");
+      return;
+    }
 
-    const unsubscribe = onSnapshot(applicationsCollectionRef, (snapshot) => {
+    if (!applicationsCollectionRef || !userProfileDocRef) return;
+
+    // Fetch applications
+    const unsubscribeApps = onSnapshot(applicationsCollectionRef, (snapshot) => {
       const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setApplications(appsData);
     }, (error) => {
@@ -1381,8 +1872,27 @@ const JobSeekerDashboardPage = () => {
       setMessage("Failed to load applications. Please try again.");
     });
 
-    return () => unsubscribe();
-  }, [applicationsCollectionRef]);
+    // Fetch user profile
+    const fetchProfile = async () => {
+      try {
+        const docSnap = await getDoc(userProfileDocRef);
+        if (docSnap.exists()) {
+          setUserProfile(docSnap.data());
+        } else {
+          setUserProfile(null); // No profile yet
+        }
+      } catch (error) {
+        console.error("Error fetching user profile: ", error);
+        // Do not set a message here as it might interfere with other messages
+      }
+    };
+    fetchProfile();
+
+
+    return () => {
+      unsubscribeApps();
+    };
+  }, [applicationsCollectionRef, userProfileDocRef, userId]); // Add userId to dependencies
 
   const handleApply = async (jobTitle) => {
     try {
@@ -1399,11 +1909,58 @@ const JobSeekerDashboardPage = () => {
     }
   };
 
-  const jobListings = [
-    { id: 1, title: "Frontend Developer", company: "Tech Solutions", description: "Develop and maintain user interfaces.", status: 'Open' },
-    { id: 2, title: "Backend Engineer", company: "Data Innovators", description: "Design and implement server-side logic.", status: 'Open' },
-    { id: 3, title: "UX Designer", company: "Creative Minds", description: "Create intuitive and appealing user experiences.", status: 'Open' },
+  const allJobListings = [
+    { id: 1, title: "Frontend Developer", company: "Tech Solutions", description: "Develop and maintain user interfaces using React and JavaScript.", skills: ["React", "JavaScript", "HTML", "CSS"], role: "Frontend Developer" },
+    { id: 2, title: "Backend Engineer", company: "Data Innovators", description: "Design and implement server-side logic with Node.js and Python.", skills: ["Node.js", "Python", "API", "Databases"], role: "Backend Engineer" },
+    { id: 3, title: "UX Designer", company: "Creative Minds", description: "Create intuitive and appealing user experiences with Figma and Sketch.", skills: ["Figma", "Sketch", "UI/UX", "Prototyping"], role: "UX Designer" },
+    { id: 4, title: "DevOps Engineer", company: "Cloud Services Inc.", description: "Manage cloud infrastructure and CI/CD pipelines using AWS and Docker.", skills: ["AWS", "Docker", "Kubernetes", "CI/CD"], role: "DevOps Engineer" },
+    { id: 5, title: "Data Scientist", company: "Analytics Corp", description: "Analyze large datasets and build machine learning models using Python and R.", skills: ["Python", "R", "Machine Learning", "Data Analysis"], role: "Data Scientist" },
+    { id: 6, title: "Mobile App Developer", company: "Innovate Mobile", description: "Develop cross-platform mobile applications with React Native.", skills: ["React Native", "JavaScript", "Mobile Development"], role: "Mobile App Developer" },
   ];
+
+  // Simple job matching logic
+  const matchedJobListings = React.useMemo(() => {
+    if (!userProfile || (!userProfile.skills && !userProfile.desiredJobRole)) {
+      return allJobListings; // Show all if no profile or no matching criteria
+    }
+
+    const userSkills = userProfile.skills ? userProfile.skills.toLowerCase().split(',').map(s => s.trim()) : [];
+    const desiredRole = userProfile.desiredJobRole ? userProfile.desiredJobRole.toLowerCase() : '';
+
+    return allJobListings.filter(job => {
+      const jobSkills = job.skills.map(s => s.toLowerCase());
+      const jobRole = job.role.toLowerCase();
+
+      let skillMatch = false;
+      if (userSkills.length > 0) {
+        skillMatch = userSkills.some(userSkill => jobSkills.includes(userSkill));
+      }
+
+      let roleMatch = false;
+      if (desiredRole) {
+        roleMatch = jobRole.includes(desiredRole) || desiredRole.includes(jobRole);
+      }
+      
+      // If no skills or desired role specified by user, all jobs match
+      if (userSkills.length === 0 && !desiredRole) {
+        return true;
+      }
+      // If both are specified, either skill or role must match
+      if (userSkills.length > 0 && desiredRole) {
+        return skillMatch || roleMatch;
+      }
+      // If only skills are specified
+      if (userSkills.length > 0) {
+        return skillMatch;
+      }
+      // If only desired role is specified
+      if (desiredRole) {
+        return roleMatch;
+      }
+      return false;
+    });
+  }, [userProfile, allJobListings]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 md:p-8">
@@ -1417,17 +1974,40 @@ const JobSeekerDashboardPage = () => {
           <DashboardCard icon="✅" title="Approved Applications" value={applications.filter(app => app.status === 'Approved').length} />
         </div>
 
-        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 mt-10 text-center">Available Job Listings</h3>
-        {jobListings.length === 0 ? (
-          <p className="text-center text-gray-600 text-lg">No job listings available at the moment.</p>
+        <div className="flex justify-center space-x-4 mb-10">
+          <button
+            onClick={() => navigate('jobSeekerProfile')}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            My Profile
+          </button>
+          <button
+            onClick={() => navigate('jobSeekerInterviewPrep')}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2"></path><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Interview Prep
+          </button>
+        </div>
+
+
+        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 mt-10 text-center">
+          {userProfile && (userProfile.skills || userProfile.desiredJobRole) ? 'Matched Job Listings' : 'Available Job Listings'}
+        </h3>
+        {matchedJobListings.length === 0 ? (
+          <p className="text-center text-gray-600 text-lg">
+            No job listings match your profile yet. Try updating your profile or check back later!
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {jobListings.map(job => (
+            {matchedJobListings.map(job => (
               <div key={job.id} className="bg-gray-50 p-6 rounded-2xl shadow-md border border-gray-200 flex flex-col justify-between">
                 <div>
                   <h4 className="text-xl font-semibold text-gray-800 mb-2">{job.title}</h4>
                   <p className="text-gray-600 text-sm mb-3">{job.company}</p>
                   <p className="text-gray-700 text-base mb-4">{job.description}</p>
+                  <p className="text-gray-500 text-xs">Skills: {job.skills.join(', ')}</p>
                 </div>
                 <button
                   onClick={() => handleApply(job.title)}
@@ -1582,9 +2162,13 @@ const App = () => {
       case 'candidateDashboard':
         return <CandidateDashboardPage />;
       case 'interviewAutomation':
-        return <InterviewAutomationPage />;
+        return <InterviewAutomationPage />; // Recruiter's automation
       case 'jobSeeker':
-        return <JobSeekerDashboardPage />;
+        return <JobSeekerDashboardPage navigate={navigate} />; // Pass navigate prop
+      case 'jobSeekerProfile':
+        return <JobSeekerProfilePage />;
+      case 'jobSeekerInterviewPrep':
+        return <JobSeekerInterviewPrepPage />;
       case 'login': // Explicitly handle login page when logged in (shouldn't happen often)
         return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
       default:
@@ -1614,7 +2198,11 @@ const App = () => {
                   </>
                 )}
                 {userRole === 'jobSeeker' && (
-                  <NavItem onClick={() => navigate('jobSeeker')} isActive={currentPage === 'jobSeeker'}>Job Seeker Dashboard</NavItem>
+                  <>
+                    <NavItem onClick={() => navigate('jobSeeker')} isActive={currentPage === 'jobSeeker'}>Job Seeker Dashboard</NavItem>
+                    <NavItem onClick={() => navigate('jobSeekerProfile')} isActive={currentPage === 'jobSeekerProfile'}>My Profile</NavItem>
+                    <NavItem onClick={() => navigate('jobSeekerInterviewPrep')} isActive={currentPage === 'jobSeekerInterviewPrep'}>Interview Prep</NavItem>
+                  </>
                 )}
                 <button
                   onClick={handleLogout}
