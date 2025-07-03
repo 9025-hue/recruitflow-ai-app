@@ -2104,8 +2104,7 @@ const App = () => {
       } catch (error) {
         console.error(`[${new Date().toISOString()}] App.js: Error during initial sign-in (custom or anonymous):`, error);
         // Do NOT show a message box for initial sign-in errors, just log and fallback
-        setIsLoading(false); // Stop loading even if initial sign-in fails
-        return; // Exit to prevent further execution in this path
+        // The onAuthStateChanged listener will handle setting isLoading to false and page
       }
 
       // onAuthStateChanged will now handle the user object and profile logic
@@ -2138,26 +2137,28 @@ const App = () => {
               console.log(`[${new Date().toISOString()}] App.js: Profile exists but role is missing after initial set for ${currentUser.uid}. Sticking with default.`);
               // This case should be rare if setDoc above worked, but for robustness.
             }
-
             setUserRole(determinedRole);
             setCurrentPage(determinedRole === 'recruiter' ? 'home' : 'jobSeeker');
-            console.log(`[${new Date().toISOString()}] App.js: Navigating to ${currentPage} for role ${determinedRole}.`);
+            console.log(`[${new Date().toISOString()}] App.js: Navigating to ${determinedRole === 'recruiter' ? 'home' : 'jobSeeker'} for role ${determinedRole}.`);
 
           } catch (profileError) {
             console.error(`[${new Date().toISOString()}] App.js: Error during user profile setup (get/set) for ${currentUser.uid}:`, profileError);
-            // DO NOT set a user-facing message here directly related to permissions on load.
-            // The goal is to avoid the "Failed to load user profile" message on initial open.
-            // Instead, log the error and ensure the app transitions out of loading.
-            setCurrentPage('login'); // Fallback to login
+            // Fallback to login on profile error, but ensure isLoading is false
+            setUserRole(null); // Clear role on error
+            setCurrentPage('login');
+            console.log(`[${new Date().toISOString()}] App.js: Profile setup failed, falling back to login.`);
+          } finally {
+            setIsLoading(false); // Ensure loading is always stopped
+            console.log(`[${new Date().toISOString()}] App.js: setIsLoading(false) called by onAuthStateChanged. Loading complete.`);
           }
         } else {
           console.log(`[${new Date().toISOString()}] App.js: No user logged in. Setting to login page.`);
           setUser(null);
           setUserRole(null);
           setCurrentPage('login');
+          setIsLoading(false); // Ensure loading is stopped when no user
+          console.log(`[${new Date().toISOString()}] App.js: setIsLoading(false) called by onAuthStateChanged. Loading complete.`);
         }
-        setIsLoading(false); // Always stop loading here
-        console.log(`[${new Date().toISOString()}] App.js: setIsLoading(false) called by onAuthStateChanged. Loading complete.`);
       });
 
       return () => {
