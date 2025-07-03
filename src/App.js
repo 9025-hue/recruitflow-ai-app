@@ -1594,7 +1594,7 @@ const InterviewAutomationPage = () => {
  * JobSeekerProfilePage allows job seekers to manage their profile.
  */
 const JobSeekerProfilePage = () => {
-  const { db, auth, userId, appId, setMessage } = useAppContext(); // Changed from useFirebase()
+  const { db, auth, userId, appId, setMessage } = useAppContext();
   const [profile, setProfile] = useState({
     name: '',
     email: auth.currentUser?.email || '',
@@ -1605,27 +1605,21 @@ const JobSeekerProfilePage = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [message, setLocalMessage] = useState(''); // Changed to setLocalMessage to avoid conflict
-  const [messageType, setMessageType] = useState('success');
-
-  // Get current user ID
-  // const userId = auth.currentUser?.uid; // Now directly from useAppContext
+  // Using global setMessage from useAppContext
+  // const [message, setLocalMessage] = useState(''); // Removed local message state
+  // const [messageType, setMessageType] = useState('success'); // Removed local message type state
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (!userId) {
-        setLocalMessage('Please log in to view your profile.');
-        setMessageType('error');
+        setMessage('Please log in to view your profile.'); // Using global setMessage
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        // Create reference to user's profile document
-        const profileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile'); // Updated path
-        
-        // Fetch the document
+        const profileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
         const docSnap = await getDoc(profileRef);
         
         if (docSnap.exists()) {
@@ -1635,67 +1629,54 @@ const JobSeekerProfilePage = () => {
             ...profileData,
             email: auth.currentUser?.email || prev.email
           }));
-          setLocalMessage('Profile loaded successfully!');
-          setMessageType('success');
+          setMessage('Profile loaded successfully!'); // Using global setMessage
         } else {
-          // New user - keep empty profile
           setProfile(prev => ({
             ...prev,
             email: auth.currentUser?.email || prev.email
           }));
-          setLocalMessage('Welcome! Please complete your profile.');
-          setMessageType('success');
+          setMessage('Welcome! Please complete your profile.'); // Using global setMessage
         }
       } catch (error) {
         console.error("Error fetching profile from Firebase: ", error);
-        setLocalMessage(`Failed to load profile: ${error.message}`);
-        setMessageType('error');
+        setMessage(`Failed to load profile: ${error.message}`); // Using global setMessage
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchProfile();
-  }, [db, auth.currentUser?.email, userId, appId]); // Added appId to dependencies
+  }, [db, auth.currentUser?.email, userId, appId, setMessage]); // Added setMessage to dependencies
 
   const handleProfileSave = async () => {
     if (!userId) {
-      setLocalMessage('Please log in to save your profile.');
-      setMessageType('error');
+      setMessage('Please log in to save your profile.'); // Using global setMessage
       return;
     }
 
-    // Basic validation
     if (!profile.name.trim()) {
-      setLocalMessage('Please enter your name.');
-      setMessageType('error');
+      setMessage('Please enter your name.'); // Using global setMessage
       return;
     }
 
     setIsSaving(true);
     try {
-      // Prepare data for Firebase (exclude email as it's managed by auth)
       const { email, ...profileToSave } = profile;
       
-      // Add timestamp
       const profileData = {
         ...profileToSave,
-        updatedAt: new Date(), // Store as Firestore Timestamp
-        createdAt: new Date() // This will be ignored if document exists
+        updatedAt: new Date(),
+        createdAt: new Date()
       };
 
-      // Create reference to user's profile document
-      const profileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile'); // Updated path
+      const profileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
       
-      // Save to Firebase
       await setDoc(profileRef, profileData, { merge: true });
       
-      setLocalMessage('Profile saved successfully!');
-      setMessageType('success');
+      setMessage('Profile saved successfully!'); // Using global setMessage
     } catch (error) {
       console.error("Error saving profile to Firebase: ", error);
-      setLocalMessage(`Failed to save profile: ${error.message}`);
-      setMessageType('error');
+      setMessage(`Failed to save profile: ${error.message}`); // Using global setMessage
     } finally {
       setIsSaving(false);
     }
@@ -1706,21 +1687,16 @@ const JobSeekerProfilePage = () => {
     setProfile(prev => ({ ...prev, [id]: value }));
   };
 
-  const clearMessage = () => {
-    setLocalMessage('');
-  };
+  // Removed clearMessage function as MessageBox now handles its own close via global message state
+  // const clearMessage = () => {
+  //   setMessage('');
+  // };
 
   if (isLoading) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
-      {message && (
-        <MessageBox 
-          message={message} 
-          type={messageType}
-          onClose={clearMessage} 
-        />
-      )}
+      {/* Message box is handled globally in App component */}
       
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <div className="flex items-center justify-between mb-8">
@@ -2119,16 +2095,22 @@ const App = () => {
 
   // useEffect hook for Firebase Authentication State Listener
   useEffect(() => {
+    console.log("App.js: useEffect for auth state changed triggered.");
     const signInInitial = async () => {
+      console.log("App.js: Attempting initial sign-in.");
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         try {
+          console.log("App.js: Signing in with custom token.");
           await signInWithCustomToken(auth, __initial_auth_token);
+          console.log("App.js: signInWithCustomToken successful (or will be handled by onAuthStateChanged).");
         } catch (error) {
-          console.error("Error signing in with custom token:", error);
+          console.error("App.js: Error signing in with custom token:", error);
           setMessage(`Authentication failed: ${error.message}`);
+          console.log("App.js: Falling back to anonymous sign-in.");
           await signInAnonymously(auth);
         }
       } else {
+        console.log("App.js: __initial_auth_token not defined, signing in anonymously.");
         await signInAnonymously(auth);
       }
     };
@@ -2136,36 +2118,55 @@ const App = () => {
     signInInitial();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log("App.js: onAuthStateChanged callback triggered. currentUser:", currentUser);
       if (currentUser) {
         setUser(currentUser);
+        console.log("App.js: User is logged in. Fetching user profile for role.");
         // Fetch user role from Firestore
         const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'profile');
-        const userProfileDocSnap = await getDoc(userProfileDocRef);
-        if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
-          setUserRole(userProfileDocSnap.data().role);
-          setCurrentPage(userProfileDocSnap.data().role === 'recruiter' ? 'home' : 'jobSeeker');
-        } else {
-          // If no role found (e.g., new anonymous user or new Google user without role set),
-          // set a default role and create/update the profile document.
-          const defaultRole = 'recruiter'; // Default to recruiter if not explicitly set
-          setUserRole(defaultRole);
-          setCurrentPage(defaultRole === 'recruiter' ? 'home' : 'jobSeeker');
-          // Ensure a profile document exists with the default role
-          await setDoc(userProfileDocRef, {
-            email: currentUser.email || 'anonymous',
-            role: defaultRole,
-            createdAt: new Date()
-          }, { merge: true });
+        try {
+          const userProfileDocSnap = await getDoc(userProfileDocRef);
+          if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
+            const role = userProfileDocSnap.data().role;
+            setUserRole(role);
+            setCurrentPage(role === 'recruiter' ? 'home' : 'jobSeeker');
+            console.log(`App.js: User role found: ${role}. Navigating to ${role === 'recruiter' ? 'home' : 'jobSeeker'}.`);
+          } else {
+            // If no role found (e.g., new anonymous user or new Google user without role set),
+            // set a default role and create/update the profile document.
+            const defaultRole = 'recruiter'; // Default to recruiter if not explicitly set
+            setUserRole(defaultRole);
+            setCurrentPage(defaultRole === 'recruiter' ? 'home' : 'jobSeeker');
+            console.log(`App.js: No user role found or profile missing. Setting default role: ${defaultRole}. Navigating to ${defaultRole === 'recruiter' ? 'home' : 'jobSeeker'}.`);
+            // Ensure a profile document exists with the default role
+            await setDoc(userProfileDocRef, {
+              email: currentUser.email || 'anonymous',
+              role: defaultRole,
+              createdAt: new Date()
+            }, { merge: true });
+            console.log("App.js: User profile created/updated with default role.");
+          }
+        } catch (profileError) {
+          console.error("App.js: Error fetching or setting user profile:", profileError);
+          setMessage(`Failed to load user profile: ${profileError.message}`);
+          // Even if profile fails, we should stop loading to prevent infinite spinner
+          // User might still be authenticated, just profile data is missing/corrupt
+          setCurrentPage('login'); // Fallback to login if profile issues prevent proper routing
         }
       } else {
+        console.log("App.js: No user logged in. Redirecting to login page.");
         setUser(null);
         setUserRole(null);
         setCurrentPage('login'); // Redirect to login if no user
       }
       setIsLoading(false);
+      console.log("App.js: setIsLoading(false) called.");
     });
 
-    return () => unsubscribe();
+    return () => {
+      console.log("App.js: Cleaning up auth state listener.");
+      unsubscribe();
+    };
   }, [auth, db, appId]); // Dependencies for useEffect
 
   /**
@@ -2173,6 +2174,7 @@ const App = () => {
    * @param {string} page - The identifier of the page to navigate to.
    */
   const navigate = (page) => {
+    console.log(`App.js: Navigating to page: ${page}`);
     setCurrentPage(page);
   };
 
@@ -2181,6 +2183,7 @@ const App = () => {
    * @param {string} role - The role of the logged-in user ('recruiter' or 'jobSeeker').
    */
   const handleLoginSuccess = (role) => {
+    console.log(`App.js: Login successful for role: ${role}`);
     setUserRole(role);
     setMessage('Logged in successfully!');
     // Redirect based on role after successful login
@@ -2196,11 +2199,13 @@ const App = () => {
    */
   const handleLogout = async () => {
     try {
+      console.log("App.js: Attempting to log out.");
       await signOut(auth);
       setMessage('Logged out successfully!');
       navigate('login'); // Redirect to login page after logout
+      console.log("App.js: Logout successful.");
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("App.js: Logout error:", error);
       setMessage(`Logout failed: ${error.message}`);
     }
   };
@@ -2210,13 +2215,16 @@ const App = () => {
    */
   const renderPage = () => {
     if (isLoading) {
+      console.log("App.js: Rendering LoadingSpinner.");
       return <LoadingSpinner />;
     }
 
     if (!user) {
+      console.log("App.js: No user, rendering LoginPage.");
       return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
     }
 
+    console.log(`App.js: User logged in (${user.uid}), current role: ${userRole}, current page: ${currentPage}`);
     // Render pages based on currentPage and userRole
     switch (currentPage) {
       case 'home':
