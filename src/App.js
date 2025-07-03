@@ -1,6 +1,7 @@
-/* global __initial_auth_token */ // __firebase_config and __app_id are now defined directly
-import React, { useState, useEffect, createContext, useContext } from 'react';
+/* global __initial_auth_token */
+import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
 import {
   getAuth,
   signInAnonymously,
@@ -11,7 +12,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
-  sendPasswordResetEmail // Import sendPasswordResetEmail
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -23,26 +24,50 @@ import {
   deleteDoc,
   getDoc
 } from 'firebase/firestore';
-// If you intend to use Firebase Analytics, uncomment the line below
-// import { getAnalytics } = "firebase/analytics";
 
+// Your web app's Firebase configuration
+// Replace with your actual Firebase project configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
+  authDomain: "hackathon-99817.firebaseapp.com",
+  projectId: "hackathon-99817",
+  storageBucket: "hackathon-99817.firebasestorage.app",
+  messagingSenderId: "196635937156",
+  appId: "1:196635937156:web:5289a52b9787a8493e35d1",
+  measurementId: "G-3TLVSX088F"
+};
 
-// Context for Firebase and User ID
+// Initialize Firebase services outside the component to prevent re-initialization
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const analytics = getAnalytics(app); // Initialize Firebase Analytics
+
+// AppContext provides Firebase instances and user-related states to child components
 const AppContext = createContext(null);
 
-// Custom Hook to use App Context
+// Custom hook to easily access the AppContext
 const useAppContext = () => useContext(AppContext);
 
 // --- Utility Components ---
 
-// Loading Spinner
+/**
+ * LoadingSpinner component displays a simple animated spinner.
+ * It's shown while the application is loading or authenticating.
+ */
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
     <div className="animate-spin rounded-full h-32 w-32 border-b-4 border-blue-600 border-opacity-75"></div>
   </div>
 );
 
-// Message Box for alerts
+/**
+ * MessageBox component displays a modal-like message box for user feedback.
+ * It replaces browser's alert() for better UI/UX.
+ * @param {object} props - Component props.
+ * @param {string} props.message - The message to display.
+ * @param {function} props.onClose - Function to call when the message box is closed.
+ */
 const MessageBox = ({ message, onClose }) => (
   <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex justify-center items-center z-50 p-4">
     <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform scale-100 animate-fade-in">
@@ -57,6 +82,9 @@ const MessageBox = ({ message, onClose }) => (
   </div>
 );
 
+/**
+ * FeatureCard component for displaying features on the home page.
+ */
 const FeatureCard = ({ icon, title, description, onClick }) => (
   <div
     className="bg-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition duration-300 transform hover:-translate-y-2 cursor-pointer flex flex-col items-center text-center border border-blue-200 hover:border-blue-400"
@@ -68,6 +96,9 @@ const FeatureCard = ({ icon, title, description, onClick }) => (
   </div>
 );
 
+/**
+ * DashboardCard component for displaying key metrics on dashboards.
+ */
 const DashboardCard = ({ title, value, icon }) => (
   <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center text-center border border-indigo-200 transform transition duration-300 hover:scale-103 hover:shadow-2xl">
     <div className="text-5xl mb-4 text-indigo-500">{icon}</div>
@@ -79,7 +110,9 @@ const DashboardCard = ({ title, value, icon }) => (
 
 // --- Pages ---
 
-// Forgot Password Modal Component
+/**
+ * ForgotPasswordModal component for handling password reset requests.
+ */
 const ForgotPasswordModal = ({ auth, onClose, setMessage }) => {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -92,7 +125,7 @@ const ForgotPasswordModal = ({ auth, onClose, setMessage }) => {
     try {
       await sendPasswordResetEmail(auth, email);
       setModalMessage('Password reset email sent! Check your inbox.');
-      setMessage('Password reset email sent! Check your inbox.');
+      setMessage('Password reset email sent! Check your inbox.'); // Also show in main app message box
     } catch (error) {
       console.error("Password reset error:", error);
       setModalMessage(`Failed to send reset email: ${error.message}`);
@@ -149,59 +182,76 @@ const ForgotPasswordModal = ({ auth, onClose, setMessage }) => {
 };
 
 
-// Login Page Component
+/**
+ * LoginPage component handles user login and registration.
+ */
 const LoginPage = ({ auth, onLoginSuccess, setMessage }) => {
-  const { db, appId } = useAppContext(); // Get db and appId from context
+  const { db, appId } = useAppContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [userRole, setUserRole] = useState('recruiter'); // Default role
-  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false); // New state for modal
+  const [userRole, setUserRole] = useState('recruiter'); // Default role for new users
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
-  // In the handleEmailPasswordAuth function:
-const handleEmailPasswordAuth = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setMessage('');
-  try {
-    let userCredential;
-    if (isRegistering) {
-      userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      setMessage('Registration successful! You are now logged in.');
-    } else {
-      userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setMessage('Login successful!');
-    }
-    // Save user role to Firestore
-    const user = userCredential.user;
-    if (db && user) {
-      await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role'), { role: userRole });
-    }
-    onLoginSuccess(userRole);
-  } catch (error) {
-    console.error("Authentication error:", error);
-    let errorMessage = `Authentication failed: ${error.message}`;
-    
-    // More specific error messages
-    if (error.code === 'auth/invalid-credential' || 
-        error.code === 'auth/wrong-password' || 
-        error.code === 'auth/user-not-found') {
-      errorMessage = "Invalid email or password. Please try again.";
-    } else if (error.code === 'auth/email-already-in-use') {
-      errorMessage = "This email is already registered. Please log in instead.";
-    } else if (error.code === 'auth/weak-password') {
-      errorMessage = "Password should be at least 6 characters.";
-    } else if (error.code === 'auth/operation-not-allowed') {
-      errorMessage = "Email/password authentication is not enabled. Please contact support.";
-    }
-    
-    setMessage(errorMessage);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  /**
+   * Handles email/password authentication (login or registration).
+   */
+  const handleEmailPasswordAuth = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage('');
+    try {
+      let userCredential;
+      if (isRegistering) {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        setMessage('Registration successful! You are now logged in.');
+      } else {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        setMessage('Login successful!');
+      }
+      // Save user role and basic profile to Firestore
+      const user = userCredential.user;
+      if (db && user) {
+        // Store role and initial profile in a single document for consistency
+        await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'profile'), {
+          role: userRole,
+          email: user.email,
+          name: '', // Initialize name
+          skills: '',
+          experience: '',
+          desiredJobRole: '',
+          resumeUrl: '',
+          createdAt: new Date()
+        }, { merge: true }); // Use merge to avoid overwriting if doc exists
+      }
+      onLoginSuccess(userRole); // Notify parent of successful login and user role
+    } catch (error) {
+      console.error("Authentication error:", error);
+      let errorMessage = `Authentication failed: ${error.message}`;
 
+      // More specific error messages for common Firebase auth errors
+      if (error.code === 'auth/invalid-credential' ||
+          error.code === 'auth/wrong-password' ||
+          error.code === 'auth/user-not-found') {
+        errorMessage = "Invalid email or password. Please try again.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email is already registered. Please log in instead.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password should be at least 6 characters.";
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = "Email/password authentication is not enabled. Please contact support.";
+      }
+
+      setMessage(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Handles Google Sign-in.
+   */
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setMessage('');
@@ -209,10 +259,19 @@ const handleEmailPasswordAuth = async (e) => {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       setMessage('Google Sign-In successful!');
-      // Save user role to Firestore
+      // Save user role and basic profile to Firestore
       const user = userCredential.user;
       if (db && user) {
-        await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'role'), { role: userRole });
+        await setDoc(doc(db, `artifacts/${appId}/users/${user.uid}/userProfile`, 'profile'), {
+          role: userRole, // Use the selected role for Google sign-in
+          email: user.email,
+          name: user.displayName || '',
+          skills: '',
+          experience: '',
+          desiredJobRole: '',
+          resumeUrl: '',
+          createdAt: new Date()
+        }, { merge: true });
       }
       onLoginSuccess(userRole); // Pass the role to the parent
     } catch (error) {
@@ -349,7 +408,9 @@ const handleEmailPasswordAuth = async (e) => {
   );
 };
 
-
+/**
+ * HomePage component for recruiters, displaying an overview of features.
+ */
 const HomePage = ({ navigate }) => (
   <div className="min-h-screen bg-gradient-to-br from-blue-100 to-indigo-200 flex flex-col items-center justify-center p-4">
     <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 text-center max-w-4xl w-full transform transition duration-500 hover:scale-105 border border-gray-200">
@@ -401,9 +462,11 @@ const HomePage = ({ navigate }) => (
   </div>
 );
 
-
+/**
+ * CandidateScreeningPage allows recruiters to add and screen candidates.
+ */
 const CandidateScreeningPage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, setMessage } = useAppContext();
   const [candidates, setCandidates] = useState([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -412,14 +475,19 @@ const CandidateScreeningPage = () => {
   const [roleFit, setRoleFit] = useState('');
   const [screeningResult, setScreeningResult] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const candidatesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/candidates`) : null;
+  // Reference to the Firestore collection for candidates
+  const candidatesCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/candidates`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  // Fetch candidates in real-time
   useEffect(() => {
-    if (!candidatesCollectionRef || !userId) return; // Ensure userId is available
+    if (!candidatesCollectionRef) return;
 
-    // Listen for real-time updates
     const unsubscribe = onSnapshot(candidatesCollectionRef, (snapshot) => {
       const candidatesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setCandidates(candidatesData);
@@ -428,14 +496,20 @@ const CandidateScreeningPage = () => {
       setMessage("Failed to load candidates. Please try again.");
     });
 
-    // Cleanup listener on unmount
     return () => unsubscribe();
-  }, [candidatesCollectionRef, userId]); // Add userId to dependencies
+  }, [candidatesCollectionRef, setMessage]);
 
+  /**
+   * Handles adding a new candidate and simulating AI screening.
+   */
   const handleAddCandidate = async (e) => {
     e.preventDefault();
     if (!name || !email || !skills || !experience || !roleFit) {
       setMessage("Please fill in all candidate fields.");
+      return;
+    }
+    if (!candidatesCollectionRef) {
+      setMessage("Database not ready. Please try again.");
       return;
     }
 
@@ -450,7 +524,7 @@ const CandidateScreeningPage = () => {
         name,
         email,
         skills,
-        experience,
+        experience: Number(experience), // Ensure experience is stored as a number
         roleFit,
         aiScore,
         fitMessage,
@@ -460,6 +534,7 @@ const CandidateScreeningPage = () => {
       await addDoc(candidatesCollectionRef, newCandidate);
       setMessage("Candidate added and screened successfully!");
       setScreeningResult(`AI Screening Score: ${aiScore}% - ${fitMessage}`);
+      // Clear form fields
       setName('');
       setEmail('');
       setSkills('');
@@ -473,29 +548,25 @@ const CandidateScreeningPage = () => {
     }
   };
 
+  /**
+   * Handles deleting a candidate.
+   */
   const handleDeleteCandidate = async (id) => {
-    // Using window.confirm for simplicity, in a real app use a custom modal.
-    // IMPORTANT: Replaced window.confirm with a custom message box for consistency.
-    setMessage("Are you sure you want to delete this candidate?");
-    const confirmDelete = async () => {
-      try {
-        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/candidates`, id));
-        setMessage("Candidate deleted successfully!");
-      } catch (error) {
-        console.error("Error deleting candidate: ", error);
-        setMessage("Failed to delete candidate. Please try again.");
-      }
-    };
-    // For a real app, you'd have a modal with "Yes" and "No" buttons,
-    // and call confirmDelete() if "Yes" is clicked.
-    // For this example, we'll just proceed as if confirmed for now.
-    // You can integrate a custom confirmation modal using the MessageBox component.
-    confirmDelete();
+    if (!candidatesCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/candidates`, id));
+      setMessage("Candidate deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting candidate: ", error);
+      setMessage("Failed to delete candidate. Please try again.");
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 to-blue-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-6xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI-Powered Candidate Screening</h2>
 
@@ -512,6 +583,7 @@ const CandidateScreeningPage = () => {
               onChange={(e) => setName(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="John Doe"
+              required
             />
           </div>
           <div>
@@ -523,6 +595,7 @@ const CandidateScreeningPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="john.doe@example.com"
+              required
             />
           </div>
           <div>
@@ -534,6 +607,7 @@ const CandidateScreeningPage = () => {
               onChange={(e) => setSkills(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="React, JavaScript, Python"
+              required
             />
           </div>
           <div>
@@ -545,6 +619,7 @@ const CandidateScreeningPage = () => {
               onChange={(e) => setExperience(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               placeholder="5"
+              required
             />
           </div>
           <div className="md:col-span-2">
@@ -556,6 +631,7 @@ const CandidateScreeningPage = () => {
               rows="3"
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-y transition duration-200"
               placeholder="Looking for a senior frontend developer with leadership potential."
+              required
             ></textarea>
           </div>
           <div className="md:col-span-2 flex justify-center">
@@ -636,11 +712,14 @@ const CandidateScreeningPage = () => {
   );
 };
 
+/**
+ * BiasDetectionPage allows users to analyze job descriptions for biased language.
+ */
 const BiasDetectionPage = () => {
+  const { setMessage } = useAppContext();
   const [jobDescription, setJobDescription] = useState('');
   const [biasAnalysis, setBiasAnalysis] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const analyzeBias = async () => {
     if (!jobDescription.trim()) {
@@ -709,7 +788,6 @@ const BiasDetectionPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-pink-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Bias Detection and Reduction</h2>
         <p className="text-center text-gray-600 mb-8">
@@ -724,6 +802,7 @@ const BiasDetectionPage = () => {
             rows="10"
             className="mt-1 block w-full p-4 border border-gray-300 rounded-lg shadow-sm focus:ring-purple-500 focus:border-purple-500 resize-y transition duration-200"
             placeholder="e.g., We are looking for a rockstar developer who can dominate the market..."
+            required
           ></textarea>
         </div>
         <div className="flex justify-center mb-8">
@@ -783,20 +862,29 @@ const BiasDetectionPage = () => {
   );
 };
 
+/**
+ * InterviewSchedulingPage allows recruiters to schedule interviews.
+ */
 const InterviewSchedulingPage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, setMessage } = useAppContext();
   const [candidateName, setCandidateName] = useState('');
   const [interviewerName, setInterviewerName] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [link, setLink] = useState('');
   const [schedules, setSchedules] = useState([]);
-  const [message, setMessage] = useState('');
 
-  const schedulesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/schedules`) : null;
+  // Reference to the Firestore collection for schedules
+  const schedulesCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/schedules`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  // Fetch schedules in real-time
   useEffect(() => {
-    if (!schedulesCollectionRef || !userId) return; // Ensure userId is available
+    if (!schedulesCollectionRef) return;
 
     const unsubscribe = onSnapshot(schedulesCollectionRef, (snapshot) => {
       const schedulesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -807,12 +895,19 @@ const InterviewSchedulingPage = () => {
     });
 
     return () => unsubscribe();
-  }, [schedulesCollectionRef, userId]); // Add userId to dependencies
+  }, [schedulesCollectionRef, setMessage]);
 
+  /**
+   * Handles scheduling a new interview.
+   */
   const handleScheduleInterview = async (e) => {
     e.preventDefault();
     if (!candidateName || !interviewerName || !date || !time || !link) {
       setMessage("Please fill in all scheduling fields.");
+      return;
+    }
+    if (!schedulesCollectionRef) {
+      setMessage("Database not ready. Please try again.");
       return;
     }
 
@@ -828,6 +923,7 @@ const InterviewSchedulingPage = () => {
 
       await addDoc(schedulesCollectionRef, newSchedule);
       setMessage("Interview scheduled successfully!");
+      // Clear form fields
       setCandidateName('');
       setInterviewerName('');
       setDate('');
@@ -839,28 +935,25 @@ const InterviewSchedulingPage = () => {
     }
   };
 
+  /**
+   * Handles deleting a scheduled interview.
+   */
   const handleDeleteSchedule = async (id) => {
-    // IMPORTANT: Replaced window.confirm with a custom message box for consistency.
-    setMessage("Are you sure you want to delete this schedule?");
-    const confirmDelete = async () => {
-      try {
-        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/schedules`, id));
-        setMessage("Schedule deleted successfully!");
-      } catch (error) {
-        console.error("Error deleting schedule: ", error);
-        setMessage("Failed to delete schedule. Please try again.");
-      }
-    };
-    // For a real app, you'd have a modal with "Yes" and "No" buttons,
-    // and call confirmDelete() if "Yes" is clicked.
-    // For this example, we'll just proceed as if confirmed for now.
-    // You can integrate a custom confirmation modal using the MessageBox component.
-    confirmDelete();
+    if (!schedulesCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/schedules`, id));
+      setMessage("Schedule deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting schedule: ", error);
+      setMessage("Failed to delete schedule. Please try again.");
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-100 to-cyan-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-5xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Automated Interview Scheduling</h2>
         <form onSubmit={handleScheduleInterview} className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 p-6 border border-gray-300 rounded-2xl bg-gray-50 shadow-inner">
@@ -876,6 +969,7 @@ const InterviewSchedulingPage = () => {
               onChange={(e) => setCandidateName(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
               placeholder="Jane Doe"
+              required
             />
           </div>
           <div>
@@ -887,6 +981,7 @@ const InterviewSchedulingPage = () => {
               onChange={(e) => setInterviewerName(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
               placeholder="John Smith"
+              required
             />
           </div>
           <div>
@@ -897,6 +992,7 @@ const InterviewSchedulingPage = () => {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
+              required
             />
           </div>
           <div>
@@ -907,6 +1003,7 @@ const InterviewSchedulingPage = () => {
               value={time}
               onChange={(e) => setTime(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
+              required
             />
           </div>
           <div className="md:col-span-2">
@@ -918,6 +1015,7 @@ const InterviewSchedulingPage = () => {
               onChange={(e) => setLink(e.target.value)}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition duration-200"
               placeholder="https://meet.google.com/xyz-abc-pqr"
+              required
             />
           </div>
           <div className="md:col-span-2 flex justify-center">
@@ -977,16 +1075,24 @@ const InterviewSchedulingPage = () => {
   );
 };
 
-
+/**
+ * CandidateDashboardPage displays analytics and a list of screened candidates.
+ */
 const CandidateDashboardPage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, setMessage } = useAppContext();
   const [candidates, setCandidates] = useState([]);
-  const [message, setMessage] = useState('');
 
-  const candidatesCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/candidates`) : null;
+  // Reference to the Firestore collection for candidates
+  const candidatesCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/candidates`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  // Fetch candidates in real-time
   useEffect(() => {
-    if (!candidatesCollectionRef || !userId) return; // Ensure userId is available
+    if (!candidatesCollectionRef) return;
 
     const unsubscribe = onSnapshot(candidatesCollectionRef, (snapshot) => {
       const candidatesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -997,7 +1103,7 @@ const CandidateDashboardPage = () => {
     });
 
     return () => unsubscribe();
-  }, [candidatesCollectionRef, userId]); // Add userId to dependencies
+  }, [candidatesCollectionRef, setMessage]);
 
   // Calculate statistics
   const totalCandidates = candidates.length;
@@ -1005,11 +1111,9 @@ const CandidateDashboardPage = () => {
     ? (candidates.reduce((sum, c) => sum + c.aiScore, 0) / totalCandidates).toFixed(1)
     : 0;
   const highPotentialCandidates = candidates.filter(c => c.aiScore >= 80).length;
-  const interviewsScheduled = 0; // This data would ideally come from another collection/query
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-blue-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-6xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Candidate Dashboard & Analytics</h2>
 
@@ -1044,7 +1148,6 @@ const CandidateDashboardPage = () => {
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
-                  {/* Removed Actions column */}
                 </tr>
               </thead>
               <tbody>
@@ -1063,7 +1166,6 @@ const CandidateDashboardPage = () => {
                         {candidate.aiScore}% ({candidate.fitMessage})
                       </span>
                     </td>
-                    {/* Removed Delete button */}
                   </tr>
                 ))}
               </tbody>
@@ -1075,9 +1177,11 @@ const CandidateDashboardPage = () => {
   );
 };
 
-// New Job Seeker Interview Preparation Page
+/**
+ * JobSeekerInterviewPrepPage provides an AI chatbot for interview preparation.
+ */
 const JobSeekerInterviewPrepPage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, setMessage } = useAppContext();
   const [candidateName, setCandidateName] = useState('');
   const [jobRole, setJobRole] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
@@ -1085,50 +1189,63 @@ const JobSeekerInterviewPrepPage = () => {
   const [isLoadingResponse, setIsLoadingResponse] = useState(false);
   const [interviewRunning, setInterviewRunning] = useState(false);
   const [sentimentAnalysis, setSentimentAnalysis] = useState(null);
-  const [message, setMessage] = useState('');
 
   // Use a different collection for job seeker interview prep chats
-  const chatHistoryCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/jobSeekerInterviewChats`) : null;
+  const chatHistoryCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/jobSeekerInterviewChats`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
   // Load user profile to pre-fill candidate name
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (db && userId) { // Ensure db and userId are available
+      if (db && userId && appId) {
         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
         try {
           const docSnap = await getDoc(userProfileRef);
           if (docSnap.exists()) {
             const profileData = docSnap.data();
             setCandidateName(profileData.name || '');
+            setJobRole(profileData.desiredJobRole || ''); // Pre-fill job role from profile
           }
         } catch (error) {
           console.error("Error fetching user profile for interview prep:", error);
-          // Do not set a message here as it might interfere with other messages
         }
       }
     };
     fetchUserProfile();
-  }, [db, userId, appId]); // Add db and userId to dependencies
+  }, [db, userId, appId]);
 
+  // Fetch chat history in real-time
   useEffect(() => {
-    if (!chatHistoryCollectionRef || !userId) return; // Ensure userId is available
+    if (!chatHistoryCollectionRef) return;
 
     const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
       const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()));
+      setChatHistory(chats.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0)));
     }, (error) => {
       console.error("Error fetching chat history: ", error);
       setMessage("Failed to load chat history. Please try again.");
     });
 
     return () => unsubscribe();
-  }, [chatHistoryCollectionRef, userId]); // Add userId to dependencies
+  }, [chatHistoryCollectionRef, setMessage]);
 
+  /**
+   * Starts the interview preparation session.
+   */
   const startInterview = async () => {
     if (!candidateName.trim() || !jobRole.trim()) {
       setMessage("Please enter your name and the job role you are preparing for to start the interview.");
       return;
     }
+    if (!chatHistoryCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
+
     setChatHistory([]);
     setSentimentAnalysis(null);
     setInterviewRunning(true);
@@ -1143,9 +1260,16 @@ const JobSeekerInterviewPrepPage = () => {
     await addDoc(chatHistoryCollectionRef, initialAiMessage);
   };
 
+  /**
+   * Sends a message to the AI chatbot and gets a response.
+   */
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!currentMessage.trim() || !interviewRunning) return;
+    if (!chatHistoryCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
 
     // Add user message to chat history
     const userMessage = {
@@ -1163,8 +1287,8 @@ const JobSeekerInterviewPrepPage = () => {
         role: msg.sender === 'User' ? 'user' : 'model',
         parts: [{ text: msg.text }]
       }));
-      
-      // Add current user message to history
+
+      // Add current user message to history for the API call
       formattedHistory.push({
         role: 'user',
         parts: [{ text: userMessage.text }]
@@ -1181,22 +1305,10 @@ const JobSeekerInterviewPrepPage = () => {
           stopSequences: []
         },
         safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
         ]
       };
 
@@ -1235,7 +1347,7 @@ const JobSeekerInterviewPrepPage = () => {
     } catch (error) {
       console.error("Error generating AI response:", error);
       setMessage("Failed to get AI response. Please try again.");
-      
+
       const errorMessage = {
         sender: 'AI',
         text: "I'm having trouble responding right now. Could you please rephrase your question?",
@@ -1247,6 +1359,9 @@ const JobSeekerInterviewPrepPage = () => {
     }
   };
 
+  /**
+   * Ends the interview preparation session.
+   */
   const endInterview = () => {
     setInterviewRunning(false);
     setMessage("Interview preparation ended. Review your chat history and sentiment analysis.");
@@ -1254,7 +1369,6 @@ const JobSeekerInterviewPrepPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Preparation</h2>
 
@@ -1269,6 +1383,7 @@ const JobSeekerInterviewPrepPage = () => {
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
               placeholder="Your Name"
               disabled={interviewRunning}
+              required
             />
           </div>
           <div>
@@ -1281,6 +1396,7 @@ const JobSeekerInterviewPrepPage = () => {
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
               placeholder="e.g., Software Engineer"
               disabled={interviewRunning}
+              required
             />
           </div>
           <div className="md:col-span-2 flex justify-center space-x-4">
@@ -1320,8 +1436,8 @@ const JobSeekerInterviewPrepPage = () => {
                   <p className="font-semibold">{msg.sender}:</p>
                   <p>{msg.text}</p>
                   <span className="block text-right text-xs text-gray-500 mt-1">
-                    {msg.timestamp?.toDate ? 
-                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() : 
+                    {msg.timestamp?.toDate ?
+                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() :
                       new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
@@ -1380,11 +1496,11 @@ const JobSeekerInterviewPrepPage = () => {
   );
 };
 
-// (This entire duplicate definition is removed. No replacement code here.)
-
-
+/**
+ * InterviewAutomationPage allows recruiters to conduct automated interviews with candidates.
+ */
 const InterviewAutomationPage = () => {
-  const { db, userId, appId } = useAppContext();
+  const { db, userId, appId, setMessage } = useAppContext();
   const [candidateName, setCandidateName] = useState('');
   const [jobRole, setJobRole] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
@@ -1392,35 +1508,49 @@ const InterviewAutomationPage = () => {
   const [isLoadingResponse, setIsLoadingResponse] = useState(false);
   const [interviewRunning, setInterviewRunning] = useState(false);
   const [sentimentAnalysis, setSentimentAnalysis] = useState(null);
-  const [message, setMessage] = useState('');
 
-  const chatHistoryCollectionRef = db ? collection(db, `artifacts/${appId}/users/${userId}/interviewChats`) : null;
+  // Reference to the Firestore collection for recruiter interview chats
+  const chatHistoryCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/recruiterInterviewChats`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  // Fetch chat history in real-time
   useEffect(() => {
-    if (!chatHistoryCollectionRef || !userId) return; // Ensure userId is available
+    if (!chatHistoryCollectionRef) return;
 
     const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
       const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()));
+      setChatHistory(chats.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0)));
     }, (error) => {
       console.error("Error fetching chat history: ", error);
       setMessage("Failed to load chat history. Please try again.");
     });
 
     return () => unsubscribe();
-  }, [chatHistoryCollectionRef, userId]); // Add userId to dependencies
+  }, [chatHistoryCollectionRef, setMessage]);
 
+  /**
+   * Starts the automated interview session.
+   */
   const startInterview = async () => {
     if (!candidateName.trim() || !jobRole.trim()) {
       setMessage("Please enter candidate name and job role to start the interview.");
       return;
     }
+    if (!chatHistoryCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
+
     setChatHistory([]);
     setSentimentAnalysis(null);
     setInterviewRunning(true);
     setMessage("Interview started!");
 
-    // Initial AI greeting
+    // Initial AI greeting for the candidate
     const initialAiMessage = {
       sender: 'AI',
       text: `Hello ${candidateName}, welcome to your interview for the ${jobRole} position. Could you please start by telling me a bit about your experience?`,
@@ -1429,13 +1559,21 @@ const InterviewAutomationPage = () => {
     await addDoc(chatHistoryCollectionRef, initialAiMessage);
   };
 
+  /**
+   * Sends a message (as the recruiter/interviewer) to the AI chatbot.
+   * The AI will respond as if it's the candidate.
+   */
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!currentMessage.trim() || !interviewRunning) return;
+    if (!chatHistoryCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
 
-    // Add user message to chat history
+    // Add user message (recruiter's question) to chat history
     const userMessage = {
-      sender: 'User',
+      sender: 'User', // User here means the recruiter
       text: currentMessage,
       timestamp: new Date(),
     };
@@ -1445,12 +1583,13 @@ const InterviewAutomationPage = () => {
 
     try {
       // Format chat history for Gemini API
+      // The AI will act as the candidate, so previous AI messages are candidate responses
       const formattedHistory = chatHistory.map(msg => ({
-        role: msg.sender === 'User' ? 'user' : 'model',
+        role: msg.sender === 'User' ? 'user' : 'model', // User is recruiter, Model is AI (candidate)
         parts: [{ text: msg.text }]
       }));
-      
-      // Add current user message to history
+
+      // Add current recruiter message to history for the API call
       formattedHistory.push({
         role: 'user',
         parts: [{ text: userMessage.text }]
@@ -1467,26 +1606,13 @@ const InterviewAutomationPage = () => {
           stopSequences: []
         },
         safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_MEDIUM_AND_ABOVE" }
         ]
       };
 
-      // Get API key from environment (will be provided at runtime)
       const apiKey = ""; // Canvas will inject this
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -1502,15 +1628,14 @@ const InterviewAutomationPage = () => {
 
       const result = await response.json();
 
-      // Extract the AI response
       let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
       if (result.candidates && result.candidates[0]?.content?.parts) {
         aiResponseText = result.candidates[0].content.parts[0].text;
       }
 
-      // Add AI response to chat history
+      // Add AI response (candidate's reply) to chat history
       const aiMessage = {
-        sender: 'AI',
+        sender: 'AI', // AI is acting as the candidate
         text: aiResponseText,
         timestamp: new Date(),
       };
@@ -1524,7 +1649,7 @@ const InterviewAutomationPage = () => {
     } catch (error) {
       console.error("Error generating AI response:", error);
       setMessage("Failed to get AI response. Please try again.");
-      
+
       // Add error message to chat
       const errorMessage = {
         sender: 'AI',
@@ -1537,6 +1662,9 @@ const InterviewAutomationPage = () => {
     }
   };
 
+  /**
+   * Ends the automated interview session.
+   */
   const endInterview = () => {
     setInterviewRunning(false);
     setMessage("Interview ended. Review the chat history and sentiment analysis.");
@@ -1544,7 +1672,6 @@ const InterviewAutomationPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-100 to-red-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">AI Interview Automation (Recruiter View)</h2>
         <p className="text-center text-gray-600 mb-8">
@@ -1562,6 +1689,7 @@ const InterviewAutomationPage = () => {
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
               placeholder="Alice Johnson"
               disabled={interviewRunning}
+              required
             />
           </div>
           <div>
@@ -1574,6 +1702,7 @@ const InterviewAutomationPage = () => {
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 transition duration-200"
               placeholder="Software Engineer"
               disabled={interviewRunning}
+              required
             />
           </div>
           <div className="md:col-span-2 flex justify-center space-x-4">
@@ -1613,8 +1742,8 @@ const InterviewAutomationPage = () => {
                   <p className="font-semibold">{msg.sender}:</p>
                   <p>{msg.text}</p>
                   <span className="block text-right text-xs text-gray-500 mt-1">
-                    {msg.timestamp?.toDate ? 
-                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() : 
+                    {msg.timestamp?.toDate ?
+                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() :
                       new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
@@ -1672,9 +1801,12 @@ const InterviewAutomationPage = () => {
     </div>
   );
 };
-// === JobSeekerProfilePage Component ===
+
+/**
+ * JobSeekerProfilePage allows job seekers to manage their profile.
+ */
 const JobSeekerProfilePage = () => {
-  const { auth, userId, appId } = useAppContext();
+  const { auth, db, userId, appId, setMessage } = useAppContext();
   const [profile, setProfile] = useState({
     name: '',
     email: auth.currentUser?.email || '',
@@ -1684,18 +1816,36 @@ const JobSeekerProfilePage = () => {
     resumeUrl: '',
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState('');
 
+  // Reference to the Firestore document for user profile
+  const userProfileDocRef = useMemo(() => {
+    if (db && userId && appId) {
+      return doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
+    }
+    return null;
+  }, [db, userId, appId]);
+
+  // Fetch profile data on component mount
   useEffect(() => {
     const fetchProfile = async () => {
+      if (!userProfileDocRef) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       try {
-        const docSnap = await mockGetDoc();
+        const docSnap = await getDoc(userProfileDocRef);
         if (docSnap.exists()) {
           const profileData = docSnap.data();
           setProfile(prev => ({
             ...prev,
             ...profileData,
+            email: auth.currentUser?.email || prev.email // Ensure email is always current user's email
+          }));
+        } else {
+          // If no profile exists, initialize with current user's email
+          setProfile(prev => ({
+            ...prev,
             email: auth.currentUser?.email || prev.email
           }));
         }
@@ -1708,13 +1858,26 @@ const JobSeekerProfilePage = () => {
       }
     };
     fetchProfile();
-  }, [auth.currentUser?.email]);
+  }, [auth.currentUser?.email, userProfileDocRef, setMessage]);
 
+  /**
+   * Handles saving the user's profile to Firestore.
+   */
   const handleProfileSave = async () => {
+    if (!userProfileDocRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
     setIsLoading(true);
     try {
-      const { email, ...profileToSave } = profile;
-      await mockSetDoc();
+      // Ensure role is also saved if it was determined at login
+      const roleToSave = profile.role || (await getDoc(userProfileDocRef)).data()?.role || 'jobSeeker';
+      await setDoc(userProfileDocRef, {
+        ...profile,
+        email: auth.currentUser?.email, // Always save current authenticated email
+        role: roleToSave, // Ensure role is saved with profile
+        updatedAt: new Date()
+      }, { merge: true }); // Use merge to update existing fields without overwriting others
       setMessage("Profile saved successfully!");
     } catch (error) {
       console.error("Error saving profile: ", error);
@@ -1724,6 +1887,9 @@ const JobSeekerProfilePage = () => {
     }
   };
 
+  /**
+   * Handles changes in form input fields.
+   */
   const handleChange = (e) => {
     const { id, value } = e.target;
     setProfile(prev => ({ ...prev, [id]: value }));
@@ -1733,7 +1899,6 @@ const JobSeekerProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
         <p className="text-center text-gray-600 mb-8">
@@ -1837,12 +2002,71 @@ const JobSeekerProfilePage = () => {
   );
 };
 
-           
+/**
+ * JobSeekerDashboardPage displays job listings and the user's applications.
+ */
+const JobSeekerDashboardPage = ({ navigate }) => {
+  const { db, userId, appId, setMessage } = useAppContext();
+  const [applications, setApplications] = useState([]);
+  const [userProfile, setUserProfile] = useState(null);
 
+  // Reference to Firestore collections
+  const applicationsCollectionRef = useMemo(() => {
+    if (db && userId && appId) {
+      return collection(db, `artifacts/${appId}/users/${userId}/applications`);
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  const userProfileDocRef = useMemo(() => {
+    if (db && userId && appId) {
+      return doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
+    }
+    return null;
+  }, [db, userId, appId]);
 
+  // Fetch applications in real-time
+  useEffect(() => {
+    if (!applicationsCollectionRef) return;
 
+    const unsubscribe = onSnapshot(applicationsCollectionRef, (snapshot) => {
+      const appsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setApplications(appsData);
+    }, (error) => {
+      console.error("Error fetching applications: ", error);
+      setMessage("Failed to load applications. Please try again.");
+    });
+
+    return () => unsubscribe();
+  }, [applicationsCollectionRef, setMessage]);
+
+  // Fetch user profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!userProfileDocRef) return;
+      try {
+        const docSnap = await getDoc(userProfileDocRef);
+        if (docSnap.exists()) {
+          setUserProfile(docSnap.data());
+        } else {
+          setUserProfile({}); // Set empty object if no profile exists
+        }
+      } catch (error) {
+        console.error("Error fetching user profile for job seeker dashboard:", error);
+        setMessage("Failed to load your profile for job matching.");
+      }
+    };
+    fetchProfile();
+  }, [userProfileDocRef, setMessage]);
+
+  /**
+   * Handles applying for a job.
+   */
   const handleApply = async (jobTitle) => {
+    if (!applicationsCollectionRef) {
+      setMessage("Database not ready. Please try again.");
+      return;
+    }
     try {
       const newApplication = {
         jobTitle,
@@ -1857,6 +2081,7 @@ const JobSeekerProfilePage = () => {
     }
   };
 
+  // Dummy job listings (replace with actual data fetched from Firestore or an API)
   const allJobListings = [
     { id: 1, title: "Frontend Developer", company: "Tech Solutions", description: "Develop and maintain user interfaces using React and JavaScript.", skills: ["React", "JavaScript", "HTML", "CSS"], role: "Frontend Developer" },
     { id: 2, title: "Backend Engineer", company: "Data Innovators", description: "Design and implement server-side logic with Node.js and Python.", skills: ["Node.js", "Python", "API", "Databases"], role: "Backend Engineer" },
@@ -1867,7 +2092,7 @@ const JobSeekerProfilePage = () => {
   ];
 
   // Simple job matching logic
-  const matchedJobListings = React.useMemo(() => {
+  const matchedJobListings = useMemo(() => {
     if (!userProfile || (!userProfile.skills && !userProfile.desiredJobRole)) {
       return allJobListings; // Show all if no profile or no matching criteria
     }
@@ -1888,7 +2113,7 @@ const JobSeekerProfilePage = () => {
       if (desiredRole) {
         roleMatch = jobRole.includes(desiredRole) || desiredRole.includes(jobRole);
       }
-      
+
       // If no skills or desired role specified by user, all jobs match
       if (userSkills.length === 0 && !desiredRole) {
         return true;
@@ -1912,7 +2137,6 @@ const JobSeekerProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 md:p-8">
-      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-6xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">Job Seeker Dashboard</h2>
 
@@ -2005,9 +2229,13 @@ const JobSeekerProfilePage = () => {
       </div>
     </div>
   );
-;
+};
 
 
+/**
+ * Main App component that orchestrates the entire application.
+ * Manages authentication, global state, and routing between pages.
+ */
 const App = () => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -2015,42 +2243,48 @@ const App = () => {
   const [message, setMessage] = useState('');
   const [userRole, setUserRole] = useState(null); // 'recruiter' or 'jobSeeker'
 
-  // Firebase Init: Using the provided configuration directly
-  const firebaseConfig = {
-    apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM", // Updated API Key
-    authDomain: "hackathon-99817.firebaseapp.com",
-    projectId: "hackathon-99817",
-    storageBucket: "hackathon-99817.firebasestorage.app",
-    messagingSenderId: "196635937156",
-    appId: "1:196635937156:web:5289a52b9787a8493e35d1",
-    measurementId: "G-3TLVSX088F"
-  };
+  // Extract appId from the configuration for Firestore paths
+  const appId = firebaseConfig.appId.split(':')[2];
 
-  // Extract appId from the configuration
-  const appId = firebaseConfig.appId.split(':')[2]; // This extracts "5289a52b9787a8493e35d1"
-
-  const app = React.useMemo(() => initializeApp(firebaseConfig), [firebaseConfig]);
-  const auth = React.useMemo(() => getAuth(app), [app]);
-  const db = React.useMemo(() => getFirestore(app), [app]);
-
-  // If you want to use analytics, uncomment the following line:
-  // const analytics = React.useMemo(() => getAnalytics(app), [app]);
-
-
+  // useEffect hook for Firebase Authentication State Listener
   useEffect(() => {
+    const signInInitial = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        try {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } catch (error) {
+          console.error("Error signing in with custom token:", error);
+          setMessage(`Authentication failed: ${error.message}`);
+          await signInAnonymously(auth);
+        }
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+
+    signInInitial();
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         // Fetch user role from Firestore
-        const roleDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'role');
-        const roleDocSnap = await getDoc(roleDocRef);
-        if (roleDocSnap.exists()) {
-          setUserRole(roleDocSnap.data().role);
-          setCurrentPage(roleDocSnap.data().role === 'recruiter' ? 'home' : 'jobSeeker');
+        const userProfileDocRef = doc(db, `artifacts/${appId}/users/${currentUser.uid}/userProfile`, 'profile');
+        const userProfileDocSnap = await getDoc(userProfileDocRef);
+        if (userProfileDocSnap.exists() && userProfileDocSnap.data().role) {
+          setUserRole(userProfileDocSnap.data().role);
+          setCurrentPage(userProfileDocSnap.data().role === 'recruiter' ? 'home' : 'jobSeeker');
         } else {
-          // Default to 'recruiter' if no role is found (first-time login, etc.)
-          setUserRole('recruiter');
-          setCurrentPage('home');
+          // If no role found (e.g., new anonymous user or new Google user without role set),
+          // set a default role and create/update the profile document.
+          const defaultRole = 'recruiter'; // Default to recruiter if not explicitly set
+          setUserRole(defaultRole);
+          setCurrentPage(defaultRole === 'recruiter' ? 'home' : 'jobSeeker');
+          // Ensure a profile document exists with the default role
+          await setDoc(userProfileDocRef, {
+            email: currentUser.email || 'anonymous',
+            role: defaultRole,
+            createdAt: new Date()
+          }, { merge: true });
         }
       } else {
         setUser(null);
@@ -2061,12 +2295,20 @@ const App = () => {
     });
 
     return () => unsubscribe();
-  }, [auth, db, appId]);
+  }, [auth, db, appId]); // Dependencies for useEffect
 
+  /**
+   * Navigates to a different page within the application.
+   * @param {string} page - The identifier of the page to navigate to.
+   */
   const navigate = (page) => {
     setCurrentPage(page);
   };
 
+  /**
+   * Callback function for successful login from LoginPage.
+   * @param {string} role - The role of the logged-in user ('recruiter' or 'jobSeeker').
+   */
   const handleLoginSuccess = (role) => {
     setUserRole(role);
     setMessage('Logged in successfully!');
@@ -2078,6 +2320,9 @@ const App = () => {
     }
   };
 
+  /**
+   * Handles user logout.
+   */
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -2089,6 +2334,9 @@ const App = () => {
     }
   };
 
+  /**
+   * Renders the appropriate page component based on the current state.
+   */
   const renderPage = () => {
     if (isLoading) {
       return <LoadingSpinner />;
@@ -2098,43 +2346,48 @@ const App = () => {
       return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
     }
 
+    // Render pages based on currentPage and userRole
     switch (currentPage) {
       case 'home':
         return <HomePage navigate={navigate} />;
       case 'candidateScreening':
-        return <CandidateScreeningPage />;
+        return userRole === 'recruiter' ? <CandidateScreeningPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Recruiters only.</p>;
       case 'biasDetection':
-        return <BiasDetectionPage />;
+        return userRole === 'recruiter' ? <BiasDetectionPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Recruiters only.</p>;
       case 'interviewScheduling':
-        return <InterviewSchedulingPage />;
+        return userRole === 'recruiter' ? <InterviewSchedulingPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Recruiters only.</p>;
       case 'candidateDashboard':
-        return <CandidateDashboardPage />;
+        return userRole === 'recruiter' ? <CandidateDashboardPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Recruiters only.</p>;
       case 'interviewAutomation':
-        return <InterviewAutomationPage />; // Recruiter's automation
+        return userRole === 'recruiter' ? <InterviewAutomationPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Recruiters only.</p>;
       case 'jobSeeker':
-        return <JobSeekerDashboardPage navigate={navigate} />; // Pass navigate prop
+        return userRole === 'jobSeeker' ? <JobSeekerDashboardPage navigate={navigate} /> : <p className="p-8 text-red-600 text-center">Access Denied: Job Seekers only.</p>;
       case 'jobSeekerProfile':
-        return <JobSeekerProfilePage />;
+        return userRole === 'jobSeeker' ? <JobSeekerProfilePage /> : <p className="p-8 text-red-600 text-center">Access Denied: Job Seekers only.</p>;
       case 'jobSeekerInterviewPrep':
-        return <JobSeekerInterviewPrepPage />;
-      case 'login': // Explicitly handle login page when logged in (shouldn't happen often)
+        return userRole === 'jobSeeker' ? <JobSeekerInterviewPrepPage /> : <p className="p-8 text-red-600 text-center">Access Denied: Job Seekers only.</p>;
+      case 'login': // This case handles if currentPage is explicitly set to 'login' while user is logged in (should redirect)
         return <LoginPage auth={auth} onLoginSuccess={handleLoginSuccess} setMessage={setMessage} />;
       default:
-        return <HomePage navigate={navigate} />;
+        // Fallback to home page if an unknown page is requested
+        return userRole === 'recruiter' ? <HomePage navigate={navigate} /> : <JobSeekerDashboardPage navigate={navigate} />;
     }
   };
 
   return (
-    <AppContext.Provider value={{ app, auth, db, userId: user?.uid, appId }}>
+    // AppContext.Provider makes Firebase instances and global states available to all children
+    <AppContext.Provider value={{ app, auth, db, userId: user?.uid, appId, setMessage }}>
       <div className="min-h-screen bg-gray-100 font-sans antialiased">
+        {/* Global Message Box */}
         {message && <MessageBox message={message} onClose={() => setMessage('')} />}
 
-        {/* Navigation */}
-        {user && ( // Only show navigation if user is logged in
-          <nav className="bg-white shadow-lg py-4 px-6">
+        {/* Navigation Bar: Only show if user is logged in and not in initial loading state */}
+        {user && (
+          <nav className="bg-white shadow-lg py-4 px-6 fixed w-full z-10 top-0">
             <div className="container mx-auto flex justify-between items-center">
               <div className="text-2xl font-bold text-blue-700">RecruitFlow AI</div>
               <div className="flex space-x-4">
+                {/* Recruiter Navigation Items */}
                 {userRole === 'recruiter' && (
                   <>
                     <NavItem onClick={() => navigate('home')} isActive={currentPage === 'home'}>Home</NavItem>
@@ -2145,6 +2398,7 @@ const App = () => {
                     <NavItem onClick={() => navigate('interviewAutomation')} isActive={currentPage === 'interviewAutomation'}>Automation</NavItem>
                   </>
                 )}
+                {/* Job Seeker Navigation Items */}
                 {userRole === 'jobSeeker' && (
                   <>
                     <NavItem onClick={() => navigate('jobSeeker')} isActive={currentPage === 'jobSeeker'}>Job Seeker Dashboard</NavItem>
@@ -2152,6 +2406,7 @@ const App = () => {
                     <NavItem onClick={() => navigate('jobSeekerInterviewPrep')} isActive={currentPage === 'jobSeekerInterviewPrep'}>Interview Prep</NavItem>
                   </>
                 )}
+                {/* Logout Button */}
                 <button
                   onClick={handleLogout}
                   className="px-4 py-2 rounded-full text-sm font-medium transition duration-300 bg-red-500 text-white hover:bg-red-600 shadow-md"
@@ -2163,9 +2418,9 @@ const App = () => {
           </nav>
         )}
 
-
-        {/* Page Content */}
-        <main>
+        {/* Main Page Content */}
+        {/* Add padding-top to main content if navbar is present to prevent overlap */}
+        <main className={user ? 'pt-20' : ''}>
           {renderPage()}
         </main>
       </div>
@@ -2173,13 +2428,20 @@ const App = () => {
   );
 };
 
+/**
+ * NavItem component for consistent styling of navigation buttons.
+ * @param {object} props - Component props.
+ * @param {React.ReactNode} props.children - The content of the button.
+ * @param {function} props.onClick - Function to call when the button is clicked.
+ * @param {boolean} props.isActive - True if the current page is active, for styling.
+ */
 const NavItem = ({ children, onClick, isActive }) => (
   <button
     onClick={onClick}
     className={`px-4 py-2 rounded-full text-sm font-medium transition duration-300
       ${isActive
-        ? 'bg-blue-600 text-white shadow-md'
-        : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700'
+        ? 'bg-blue-600 text-white shadow-md' // Active state styling
+        : 'text-gray-700 hover:bg-blue-100 hover:text-blue-700' // Inactive state styling
       }`}
   >
     {children}
