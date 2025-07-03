@@ -1806,7 +1806,7 @@ const InterviewAutomationPage = () => {
  * JobSeekerProfilePage allows job seekers to manage their profile.
  */
 const JobSeekerProfilePage = () => {
-  const { auth, db, userId, appId, setMessage } = useAppContext();
+  const { auth, userId, appId } = useAppContext();
   const [profile, setProfile] = useState({
     name: '',
     email: auth.currentUser?.email || '',
@@ -1816,36 +1816,18 @@ const JobSeekerProfilePage = () => {
     resumeUrl: '',
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
-  // Reference to the Firestore document for user profile
-  const userProfileDocRef = useMemo(() => {
-    if (db && userId && appId) {
-      return doc(db, `artifacts/${appId}/users/${userId}/userProfile`, 'profile');
-    }
-    return null;
-  }, [db, userId, appId]);
-
-  // Fetch profile data on component mount
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!userProfileDocRef) {
-        setIsLoading(false);
-        return;
-      }
       setIsLoading(true);
       try {
-        const docSnap = await getDoc(userProfileDocRef);
+        const docSnap = await mockGetDoc();
         if (docSnap.exists()) {
           const profileData = docSnap.data();
           setProfile(prev => ({
             ...prev,
             ...profileData,
-            email: auth.currentUser?.email || prev.email // Ensure email is always current user's email
-          }));
-        } else {
-          // If no profile exists, initialize with current user's email
-          setProfile(prev => ({
-            ...prev,
             email: auth.currentUser?.email || prev.email
           }));
         }
@@ -1858,26 +1840,13 @@ const JobSeekerProfilePage = () => {
       }
     };
     fetchProfile();
-  }, [auth.currentUser?.email, userProfileDocRef, setMessage]);
+  }, [auth.currentUser?.email]);
 
-  /**
-   * Handles saving the user's profile to Firestore.
-   */
   const handleProfileSave = async () => {
-    if (!userProfileDocRef) {
-      setMessage("Database not ready. Please try again.");
-      return;
-    }
     setIsLoading(true);
     try {
-      // Ensure role is also saved if it was determined at login
-      const roleToSave = profile.role || (await getDoc(userProfileDocRef)).data()?.role || 'jobSeeker';
-      await setDoc(userProfileDocRef, {
-        ...profile,
-        email: auth.currentUser?.email, // Always save current authenticated email
-        role: roleToSave, // Ensure role is saved with profile
-        updatedAt: new Date()
-      }, { merge: true }); // Use merge to update existing fields without overwriting others
+      const { email, ...profileToSave } = profile;
+      await mockSetDoc();
       setMessage("Profile saved successfully!");
     } catch (error) {
       console.error("Error saving profile: ", error);
@@ -1887,9 +1856,6 @@ const JobSeekerProfilePage = () => {
     }
   };
 
-  /**
-   * Handles changes in form input fields.
-   */
   const handleChange = (e) => {
     const { id, value } = e.target;
     setProfile(prev => ({ ...prev, [id]: value }));
@@ -1899,6 +1865,7 @@ const JobSeekerProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 md:p-8">
+      {message && <MessageBox message={message} onClose={() => setMessage('')} />}
       <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-10 max-w-4xl mx-auto border border-gray-200">
         <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-8 text-center">My Job Seeker Profile</h2>
         <p className="text-center text-gray-600 mb-8">
@@ -2001,7 +1968,6 @@ const JobSeekerProfilePage = () => {
     </div>
   );
 };
-
 /**
  * JobSeekerDashboardPage displays job listings and the user's applications.
  */
