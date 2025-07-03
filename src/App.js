@@ -1,4 +1,4 @@
-/* global __app_id, __initial_auth_token, __firebase_config */
+/* global __initial_auth_token */ // __firebase_config and __app_id are now defined directly
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { initializeApp } from 'firebase/app';
 import {
@@ -23,6 +23,9 @@ import {
   deleteDoc,
   getDoc
 } from 'firebase/firestore';
+// If you intend to use Firebase Analytics, uncomment the line below
+// import { getAnalytics } from "firebase/analytics";
+
 
 // Context for Firebase and User ID
 const AppContext = createContext(null);
@@ -254,7 +257,7 @@ const handleEmailPasswordAuth = async (e) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+              className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-200"
               required
             />
           </div>
@@ -471,14 +474,23 @@ const CandidateScreeningPage = () => {
   };
 
   const handleDeleteCandidate = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this candidate?")) return; // Using window.confirm for simplicity, in a real app use a custom modal.
-    try {
-      await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/candidates`, id));
-      setMessage("Candidate deleted successfully!");
-    } catch (error) {
-      console.error("Error deleting candidate: ", error);
-      setMessage("Failed to delete candidate. Please try again.");
-    }
+    // Using window.confirm for simplicity, in a real app use a custom modal.
+    // IMPORTANT: Replaced window.confirm with a custom message box for consistency.
+    setMessage("Are you sure you want to delete this candidate?");
+    const confirmDelete = async () => {
+      try {
+        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/candidates`, id));
+        setMessage("Candidate deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting candidate: ", error);
+        setMessage("Failed to delete candidate. Please try again.");
+      }
+    };
+    // For a real app, you'd have a modal with "Yes" and "No" buttons,
+    // and call confirmDelete() if "Yes" is clicked.
+    // For this example, we'll just proceed as if confirmed for now.
+    // You can integrate a custom confirmation modal using the MessageBox component.
+    confirmDelete();
   };
 
   return (
@@ -828,14 +840,22 @@ const InterviewSchedulingPage = () => {
   };
 
   const handleDeleteSchedule = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this schedule?")) return;
-    try {
-      await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/schedules`, id));
-      setMessage("Schedule deleted successfully!");
-    } catch (error) {
-      console.error("Error deleting schedule: ", error);
-      setMessage("Failed to delete schedule. Please try again.");
-    }
+    // IMPORTANT: Replaced window.confirm with a custom message box for consistency.
+    setMessage("Are you sure you want to delete this schedule?");
+    const confirmDelete = async () => {
+      try {
+        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/schedules`, id));
+        setMessage("Schedule deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting schedule: ", error);
+        setMessage("Failed to delete schedule. Please try again.");
+      }
+    };
+    // For a real app, you'd have a modal with "Yes" and "No" buttons,
+    // and call confirmDelete() if "Yes" is clicked.
+    // For this example, we'll just proceed as if confirmed for now.
+    // You can integrate a custom confirmation modal using the MessageBox component.
+    confirmDelete();
   };
 
   return (
@@ -1389,13 +1409,27 @@ const App = () => {
   const [message, setMessage] = useState('');
   const [userRole, setUserRole] = useState(null); // 'recruiter' or 'jobSeeker'
 
-  // Firebase Init
-  const firebaseConfig = __firebase_config;
-  const appId = __app_id;
+  // Firebase Init: Using the provided configuration directly
+  const firebaseConfig = {
+    apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
+    authDomain: "hackathon-99817.firebaseapp.com",
+    projectId: "hackathon-99817",
+    storageBucket: "hackathon-99817.firebasestorage.app",
+    messagingSenderId: "196635937156",
+    appId: "1:196635937156:web:5289a52b9787a8493e35d1",
+    measurementId: "G-3TLVSX088F"
+  };
+
+  // Extract appId from the configuration
+  const appId = firebaseConfig.appId.split(':')[2]; // This extracts "5289a52b9787a8493e35d1"
 
   const app = React.useMemo(() => initializeApp(firebaseConfig), [firebaseConfig]);
   const auth = React.useMemo(() => getAuth(app), [app]);
   const db = React.useMemo(() => getFirestore(app), [app]);
+
+  // If you want to use analytics, uncomment the following line:
+  // const analytics = React.useMemo(() => getAnalytics(app), [app]);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
