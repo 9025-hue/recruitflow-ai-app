@@ -13,16 +13,16 @@ import {
   signOut,
   sendPasswordResetEmail // Import sendPasswordResetEmail
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  getDoc 
-} from 'firebase/firestore'; // Removed getDocs, updateDoc, query, where
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  doc,
+  setDoc,
+  deleteDoc,
+  getDoc
+} from 'firebase/firestore';
 
 // Context for Firebase and User ID
 const AppContext = createContext(null);
@@ -177,7 +177,12 @@ const LoginPage = ({ auth, onLoginSuccess, setMessage }) => {
       onLoginSuccess(userRole); // Pass the role to the parent
     } catch (error) {
       console.error("Authentication error:", error);
-      setMessage(`Authentication failed: ${error.message}`);
+      // More specific message for invalid credentials
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        setMessage("Authentication failed: Please check your email and password. If you're still having trouble, try 'Sign in with Google' or 'Forgot Password?'.");
+      } else {
+        setMessage(`Authentication failed: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1096,7 +1101,7 @@ const InterviewAutomationPage = () => {
       // Simulate LLM response
       const prompt = `User: ${chatInput}\nAI:`;
       const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
-      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will provide this at runtime
+      const apiKey = ""; // Canvas will provide this at runtime
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
@@ -1435,14 +1440,17 @@ const App = () => {
   // Access these global variables directly
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'my-recruitment-app-local';
   const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+  // IMPORTANT: Replace this with your actual Firebase project configuration for external deployments (e.g., Vercel, Netlify)
+  // You can find this in your Firebase project settings -> Project settings -> General -> Your apps -> Web app -> Firebase SDK snippet -> Config
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-    apiKey: "AIzaSyC8ovYtPmE5QdeZnNQGTc0I2WfuvqLursM",
-    authDomain: "hackathon-99817.firebaseapp.com",
-    projectId: "hackathon-99817",
-    storageBucket: "hackathon-99817.firebasestorage.app",
-    messagingSenderId: "196635937156",
-    appId: "1:196635937156:web:5289a52b9787a8493e35d1",
-    measurementId: "G-3TLVSX088F"
+    apiKey: "YOUR_FIREBASE_API_KEY", // Replace with your actual API Key
+    authDomain: "YOUR_FIREBASE_AUTH_DOMAIN", // Replace with your actual Auth Domain
+    projectId: "YOUR_FIREBASE_PROJECT_ID", // Replace with your actual Project ID
+    storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET", // Replace with your actual Storage Bucket
+    messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID", // Replace with your actual Messaging Sender ID
+    appId: "YOUR_FIREBASE_APP_ID", // Replace with your actual App ID
+    measurementId: "YOUR_FIREBASE_MEASUREMENT_ID" // Replace with your actual Measurement ID (optional)
   };
 
 
@@ -1476,7 +1484,7 @@ const App = () => {
           } else {
             // If no user, try anonymous sign-in for local testing if no custom token
             try {
-              if (initialAuthToken) { // Use custom token if available
+              if (initialAuthToken) { // Use custom token if available (Canvas environment)
                 await signInWithCustomToken(firebaseAuth, initialAuthToken);
                 setUserId(firebaseAuth.currentUser?.uid);
                 // Fetch user role after custom token sign-in
@@ -1487,14 +1495,17 @@ const App = () => {
                 } else {
                   setUserRole('recruiter'); // Default if not found
                 }
-              } else { // Fallback to anonymous sign-in if no custom token
+              } else { // Fallback to anonymous sign-in if no custom token (external deployment)
                 await signInAnonymously(firebaseAuth);
                 setUserId(firebaseAuth.currentUser?.uid || crypto.randomUUID());
                 setUserRole('recruiter'); // Default role for anonymous
               }
             } catch (authError) {
-              console.error("Firebase Auth Error:", authError);
-              setMessage("Authentication failed. Some features may not work.");
+              console.error("Firebase Auth Error during initial anonymous/custom token sign-in:", authError);
+              // Only show a general message if it's not a specific login attempt error
+              if (!['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(authError.code)) {
+                setMessage("Authentication failed during initial load. Some features may not work. Please check your Firebase project setup and enabled authentication methods.");
+              }
               setUserId(crypto.randomUUID()); // Use a random ID if auth fails
               setUserRole(null); // No role if auth fails
             }
@@ -1505,7 +1516,7 @@ const App = () => {
         return () => unsubscribe(); // Cleanup auth listener
       } catch (error) {
         console.error("Failed to initialize Firebase:", error);
-        setMessage("Failed to initialize Firebase. Data persistence may not work.");
+        setMessage("Failed to initialize Firebase. Data persistence may not work. Please ensure your firebaseConfig is correct.");
         setLoadingFirebase(false);
         setUserId(crypto.randomUUID()); // Fallback to a random ID
         setUserRole(null); // No role if firebase init fails
@@ -1517,7 +1528,7 @@ const App = () => {
     } else {
       setLoadingFirebase(false);
     }
-  }, [firebaseApp, initialAuthToken, firebaseConfig, appId]); // Added appId to dependency array
+  }, [firebaseApp, initialAuthToken, firebaseConfig, appId]);
 
   const navigate = (page) => {
     setCurrentPage(page);
