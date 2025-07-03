@@ -1073,7 +1073,6 @@ const CandidateDashboardPage = () => {
   );
 };
 
-
 const InterviewAutomationPage = () => {
   const { db, userId, appId } = useAppContext();
   const [candidateName, setCandidateName] = useState('');
@@ -1092,7 +1091,7 @@ const InterviewAutomationPage = () => {
 
     const unsubscribe = onSnapshot(chatHistoryCollectionRef, (snapshot) => {
       const chats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate())); // Sort by timestamp
+      setChatHistory(chats.sort((a, b) => a.timestamp.toDate() - b.timestamp.toDate()));
     }, (error) => {
       console.error("Error fetching chat history: ", error);
       setMessage("Failed to load chat history. Please try again.");
@@ -1106,12 +1105,12 @@ const InterviewAutomationPage = () => {
       setMessage("Please enter candidate name and job role to start the interview.");
       return;
     }
-    setChatHistory([]); // Clear previous chat
+    setChatHistory([]);
     setSentimentAnalysis(null);
     setInterviewRunning(true);
     setMessage("Interview started!");
 
-    // Simulate AI's first question
+    // Initial AI greeting
     const initialAiMessage = {
       sender: 'AI',
       text: `Hello ${candidateName}, welcome to your interview for the ${jobRole} position. Could you please start by telling me a bit about your experience?`,
@@ -1124,6 +1123,7 @@ const InterviewAutomationPage = () => {
     e.preventDefault();
     if (!currentMessage.trim() || !interviewRunning) return;
 
+    // Add user message to chat history
     const userMessage = {
       sender: 'User',
       text: currentMessage,
@@ -1134,19 +1134,51 @@ const InterviewAutomationPage = () => {
     setIsLoadingResponse(true);
 
     try {
-      // Prepare chat history for the LLM API call
-      let chatHistoryForApi = chatHistory.map(msg => ({
+      // Format chat history for Gemini API
+      const formattedHistory = chatHistory.map(msg => ({
         role: msg.sender === 'User' ? 'user' : 'model',
         parts: [{ text: msg.text }]
       }));
-      chatHistoryForApi.push({ role: "user", parts: [{ text: userMessage.text }] }); // Add the current user message
+      
+      // Add current user message to history
+      formattedHistory.push({
+        role: 'user',
+        parts: [{ text: userMessage.text }]
+      });
 
+      // Prepare the request payload
       const payload = {
-        contents: chatHistoryForApi,
+        contents: formattedHistory,
+        generationConfig: {
+          temperature: 0.9,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 2048,
+          stopSequences: []
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
       };
 
-      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will automatically provide this in runtime
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      // Get API key from environment (will be provided at runtime)
+      const apiKey = ""; // Canvas will inject this
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -1154,17 +1186,19 @@ const InterviewAutomationPage = () => {
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
-
-      let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
-      if (result.candidates && result.candidates.length > 0 &&
-          result.candidates[0].content && result.candidates[0].content.parts &&
-          result.candidates[0].content.parts.length > 0) {
-        aiResponseText = result.candidates[0].content.parts[0].text;
-      } else {
-        console.error("Unexpected API response structure:", result);
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
       }
 
+      const result = await response.json();
+
+      // Extract the AI response
+      let aiResponseText = "I'm sorry, I couldn't generate a response at this time.";
+      if (result.candidates && result.candidates[0]?.content?.parts) {
+        aiResponseText = result.candidates[0].content.parts[0].text;
+      }
+
+      // Add AI response to chat history
       const aiMessage = {
         sender: 'AI',
         text: aiResponseText,
@@ -1172,7 +1206,7 @@ const InterviewAutomationPage = () => {
       };
       await addDoc(chatHistoryCollectionRef, aiMessage);
 
-      // Simulate sentiment analysis (can be replaced with actual NLP API call)
+      // Simulate sentiment analysis (can be replaced with actual API call)
       const sentimentScore = Math.random() * 2 - 1; // Between -1 and 1
       const sentiment = sentimentScore > 0.5 ? 'Positive' : sentimentScore < -0.5 ? 'Negative' : 'Neutral';
       setSentimentAnalysis({ score: sentimentScore.toFixed(2), sentiment: sentiment });
@@ -1180,9 +1214,11 @@ const InterviewAutomationPage = () => {
     } catch (error) {
       console.error("Error generating AI response:", error);
       setMessage("Failed to get AI response. Please try again.");
+      
+      // Add error message to chat
       const errorMessage = {
         sender: 'AI',
-        text: "There was an error processing your request. Please try again.",
+        text: "I'm having trouble responding right now. Could you please rephrase your question?",
         timestamp: new Date(),
       };
       await addDoc(chatHistoryCollectionRef, errorMessage);
@@ -1191,10 +1227,9 @@ const InterviewAutomationPage = () => {
     }
   };
 
-  const endInterview = async () => {
+  const endInterview = () => {
     setInterviewRunning(false);
     setMessage("Interview ended. Review the chat history and sentiment analysis.");
-    // Optionally save the full chat history or a summary to another collection
   };
 
   return (
@@ -1265,7 +1300,9 @@ const InterviewAutomationPage = () => {
                   <p className="font-semibold">{msg.sender}:</p>
                   <p>{msg.text}</p>
                   <span className="block text-right text-xs text-gray-500 mt-1">
-                    {new Date(msg.timestamp.seconds * 1000).toLocaleTimeString()}
+                    {msg.timestamp?.toDate ? 
+                      new Date(msg.timestamp.seconds * 1000).toLocaleTimeString() : 
+                      new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
               ))}
@@ -1322,6 +1359,8 @@ const InterviewAutomationPage = () => {
     </div>
   );
 };
+
+           
 
 
 const JobSeekerDashboardPage = () => {
