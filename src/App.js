@@ -1145,7 +1145,7 @@ const InterviewAutomationPage = () => {
         contents: chatHistoryForApi,
       };
 
-      const apiKey = ""; // Canvas will automatically provide this in runtime
+      const apiKey = "AIzaSyCKGzrV-Zgx4oaFwoHoM7jv0RnNbq90f2Q"; // Canvas will automatically provide this in runtime
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
       const response = await fetch(apiUrl, {
