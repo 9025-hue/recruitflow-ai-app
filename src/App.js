@@ -925,7 +925,7 @@ const InterviewSchedulingPage = () => {
               type="submit"
               className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><path d="M12 16h.01"></path><path d="M7 16h.01"></path><path d="M17 16h.01"></path><path d="M7 12h.01"></path><path d="M12 12h.01"></path><path d="M17 12h.01"></path></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
               Schedule Interview
             </button>
           </div>
@@ -1043,7 +1043,7 @@ const CandidateDashboardPage = () => {
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Email</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Skills</th>
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">Experience</th>
-                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider rounded-tr-xl">AI Score</th>
+                  <th className="py-3 px-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">AI Score</th>
                   {/* Removed Actions column */}
                 </tr>
               </thead>
@@ -1385,11 +1385,11 @@ const JobSeekerProfilePage = () => {
   const { db, userId, appId, auth } = useAppContext(); // Get auth from context
   const [profile, setProfile] = useState({
     name: '',
-    email: '', // Initialize with empty string
+    email: '',
     skills: '',
     experience: '',
     desiredJobRole: '',
-    resumeUrl: '', // Simulated resume upload
+    resumeUrl: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -1398,54 +1398,47 @@ const JobSeekerProfilePage = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!userProfileDocRef || !userId) {
-        setIsLoading(false); // Ensure loading is false if prerequisites are not met
+      if (!userProfileDocRef) {
+        setMessage('User profile reference not available.');
         return;
       }
       setIsLoading(true);
       try {
         const docSnap = await getDoc(userProfileDocRef);
-        let profileData = {};
         if (docSnap.exists()) {
-          profileData = docSnap.data();
+          const data = docSnap.data();
+          setProfile(prev => ({
+            ...prev,
+            ...data,
+            email: data.email || auth?.currentUser?.email || '',
+          }));
         } else {
-          setMessage("No profile found. Please create your profile.");
+          // Set email from auth if not present
+          setProfile(prev => ({ ...prev, email: auth?.currentUser?.email || '' }));
         }
-        // Always set the email from the authenticated user, as it's read-only
-        setProfile(prev => ({
-          ...prev,
-          ...profileData,
-          email: auth.currentUser?.email || profileData.email || '' // Use auth.currentUser.email if available
-        }));
       } catch (error) {
-        console.error("Error fetching profile: ", error);
-        setMessage("Failed to load profile. Please try again.");
-        setProfile(prev => ({ // Ensure email is still set from auth even on error
-          ...prev,
-          email: auth.currentUser?.email || ''
-        }));
+        setMessage('Failed to load profile.');
+        console.error('Error loading profile:', error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchProfile();
-  }, [userProfileDocRef, userId, auth.currentUser?.email]); // Add auth.currentUser?.email to dependencies
+  }, [userProfileDocRef, userId, auth?.currentUser?.email]);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
     if (!userProfileDocRef) {
-      setMessage("User not logged in or profile reference not available.");
+      setMessage('User profile reference not available.');
       return;
     }
     setIsLoading(true);
     try {
-      // Do not save email as it's read-only and managed by Auth
-      const { email, ...profileToSave } = profile; 
-      await setDoc(userProfileDocRef, profileToSave, { merge: true });
-      setMessage("Profile saved successfully!");
+      await setDoc(userProfileDocRef, profile, { merge: true });
+      setMessage('Profile saved successfully!');
     } catch (error) {
-      console.error("Error saving profile: ", error);
-      setMessage("Failed to save profile. Please try again.");
+      setMessage('Failed to save profile.');
+      console.error('Error saving profile:', error);
     } finally {
       setIsLoading(false);
     }
@@ -1482,7 +1475,7 @@ const JobSeekerProfilePage = () => {
             <input
               type="email"
               id="email"
-              value={profile.email} // Use profile.email directly
+              value={profile.email}
               className="mt-1 block w-full p-3 border border-gray-300 rounded-lg shadow-sm bg-gray-100 cursor-not-allowed"
               disabled
             />
@@ -1547,7 +1540,7 @@ const JobSeekerProfilePage = () => {
                 </svg>
               ) : (
                 <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                   Save Profile
                 </>
               )}
@@ -1850,8 +1843,6 @@ const InterviewAutomationPage = () => {
   );
 };
 
-           
-
 
 const JobSeekerDashboardPage = ({ navigate }) => {
   const { db, userId, appId } = useAppContext();
@@ -1994,7 +1985,7 @@ const JobSeekerDashboardPage = ({ navigate }) => {
             onClick={() => navigate('jobSeekerInterviewPrep')}
             className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2"></path><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2z"></path><path d="M7 6h10M7 9h10M7 12h10M7 15h10"></path></svg>
             Interview Prep
           </button>
         </div>
